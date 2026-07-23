@@ -1,5 +1,15 @@
 # encapsule releases
 
+## 0.4 (2026-07-23)
+- convert to using subcommands
+- `list`: separate images and containers and include image tags
+- introduce `start` (= run --keep)
+- add `enter` command (formerly --join)
+- correct some container name sanitizations
+- check that the host project dir actually exists
+- improve HOME handling and mount project to its own path for clarity
+- also default workdir to home for image
+
 ## 0.3 (2026-07-20)
 - project renamed from constrained-toolbox
 - rename `--persistent` to `--keep`

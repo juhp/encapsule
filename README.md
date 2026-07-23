@@ -1,63 +1,23 @@
 # encapsule
 
-CLI tool to run developer containers, isolating your home directory and host from container side effects:
+CLI tool to run developer containers, isolating your home directory and host from general effects inside the containers:
 "encapsules" a project and/or temp home dir together with select "capabilities".
 
 Originally derived from [toolbox-constrained](https://github.com/swick/toolbox-constrained) tool.
 
 Run a ([toolbox](https://containertoolbx.org/)) container or image as
-an isolated podman container. Unlike with `toolbox enter`, this does *not*
+an isolated podman container. Unlike with `toolbox create`, this does *not*
 bind-mount your home directory or integrate with the host by default.
 You can explicitly choose what dir(s) to mount or features to enable,
 selecting user-configured "capabilities" that the encapsule container can access.
 
 ```
-encapsule TOOLBOX [options] [CMD...]
+encapsule COMMAND TOOLBOX [options] [CMD...]
 ```
 
 if TOOLBOX is a container it will be committed (saved) to an "encapsule" container image from the named toolbox container using buildah.
 
-## Examples
-
-```bash
-# Isolated shell without host fs access
-$ encapsule my-toolbox
-
-# Mount current (project) directory in / and set it as the working directory
-# (also names the container after the project, e.g. encapsule-my-toolbox-myproject)
-$ encapsule my-toolbox -p .
-
-# Bind mount a volume
-$ encapsule my-toolbox -v ~/data:/data
-
-# Mount a temp "home" directory (created if it doesn't exist)
-$ encapsule my-toolbox --home /tmp/somedir
-
-# Use capabilities from config
-$ encapsule my-toolbox --cap ssh --cap git
-
-# Read-only container filesystem
-$ encapsule my-toolbox --readonly
-
-# Remove the saved image
-$ encapsule my-toolbox --delete-image
-
-# Set environment variables and prepend to PATH
-$ encapsule my-toolbox -e MY_VAR=hello -P ~/.local/bin
-
-# Run a specific command
-$ encapsule my-toolbox -- ls /
-
-# Dry run: print the full podman command without running it
-$ encapsule my-toolbox --dryrun
-
-# run directly from an image
-$ encapsule fedora:44 --home tmphome
-```
-
-Encapsule containers are ephemeral by default: use `--keep` to leave the encapsule container around for reuse. Note the saved image will be reused next time unless using `--refresh`.
-
-### Usage
+## Usage
 
 `$ encapsule --version`
 
@@ -132,10 +92,50 @@ Available options:
   -h,--help                Show this help text
 ```
 
+## Examples
+
+```bash
+# Temporary isolated shell without host fs access
+$ encapsule run my-toolbox
+
+# Mount current (project) directory in / and set it as the working directory
+# (also names the container after the project, e.g. encapsule-my-toolbox-myproject)
+$ encapsule start my-toolbox -p .
+
+# Bind mount a volume
+$ encapsule run my-toolbox -v ~/data:/data
+
+# Mount a temp "home" directory (created if it doesn't exist)
+$ encapsule run my-toolbox --home /tmp/somedir
+
+# Use capabilities from config
+$ encapsule start my-toolbox --cap ssh --cap git
+
+# Read-only container filesystem
+$ encapsule run my-toolbox --readonly
+
+# Remove encapsule container
+$ encapsule rm my-toolbox
+
+# Set environment variables and prepend to PATH
+$ encapsule run my-toolbox -e MY_VAR=hello -P ~/.local/bin
+
+# Run a specific command
+$ encapsule run my-toolbox -- ls /
+
+# Dry run: print the full podman command without running it
+$ encapsule run --dryrun my-toolbox
+
+# run directly from an image
+$ encapsule run fedora:44 --home tmphome
+```
+
+Note the saved image will be reused next time unless using `--refresh`.
+
 ## Capabilities
 
-Define reusable groups of volumes, environment variables, PATH entries,
-and init commands in `~/.config/encapsule/config.toml`:
+Capabilities define reusable groups of volumes, environment variables,
+PATH entries, and init commands in `~/.config/encapsule/config.toml`:
 
 ```toml
 [capabilities.ssh]
@@ -216,7 +216,7 @@ There is also similarly [schupfn](https://github.com/whot/schupfn/) which uses Q
 For stronger sandboxing and isolation, specially network, consider using [OpenShell](https://github.com/NVIDIA/OpenShell/). At some point this project might move to wrapping openshell possibly.
 
 ## Disclaimer
-The simple isolation provided is "best effort" and
+The simple isolation provided is limited best effort and
 comes with no (security) warranty.
 Please use this tool at your own risk.
 
