@@ -15,7 +15,7 @@ import System.Directory (canonicalizePath, createDirectoryIfMissing,
                          doesDirectoryExist, doesFileExist, doesPathExist,
                          getHomeDirectory)
 import System.Environment.XDG.BaseDir (getUserConfigFile)
-import System.Exit (exitWith)
+import System.Exit (exitWith, exitFailure)
 import System.FilePath ((</>), takeFileName)
 import System.IO (BufferMode(NoBuffering), hSetBuffering, stdout)
 import System.Posix.Process (getProcessID)
@@ -23,7 +23,7 @@ import System.Posix.Env (getEnvDefault)
 import System.Posix.Files (getFileStatus, isSocket)
 import System.Posix.User (getEffectiveUserName)
 import System.Process (rawSystem)
-import SimpleCmd (cmd_, cmdBool, cmdFull, cmdLines, error', warning, (+-+))
+import SimpleCmd (cmd_, cmdBool, cmdFull, cmdLines, warning, (+-+))
 import SimpleCmdArgs
 import TOML (Value(..), Table, renderTOMLError, decodeFile)
 
@@ -302,7 +302,7 @@ runCmd (RunOpts {..}) = do
             exists <- doesDirectoryExist d
             if exists
               then return [d ++ ':' : d]
-              else error $ "project dir not found:" +-+ d
+              else error' $ "project dir not found:" +-+ d
           Nothing -> return []
       let volumes = homeVol ++ vols ++ extraVols ++ projectVol
           envVars = envs ++ extraEnvs
@@ -625,3 +625,8 @@ infixr 4 +=+
 s +=+ t | lastMay s == Just '-' = s ++ t
         | headMay t == Just '-' = s ++ t
 s +=+ t = s ++ '-' : t
+
+error':: String -> IO a
+error' err = do
+  putStrLn err
+  exitFailure
