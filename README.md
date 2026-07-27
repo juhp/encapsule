@@ -44,8 +44,8 @@ Available commands:
   rm                       Remove an encapsule container
   rmi                      Remove an encapsule image
   stop                     Stop an encapsule container
-  enter                    Connect to a (running) encapsule container
-  start                    Create an encapsule container
+  create                   Create an encapsule container
+  enter                    Connect to a encapsule container
   run                      Run a temporary encapsule container
 ```
 
@@ -62,8 +62,8 @@ Usage: encapsule run TOOLBOX [-v|--volume HOST:CONTAINER[:opts]]
                      [-e|--env KEY[=VALUE]] [-P|--path DIR] [-i|--init CMD]
                      [--cap NAME] [--home DIR] [-p|--project DIR]
                      [-n|--name NAME] [--readonly] [--no-network] [--no-sudo]
-                     [--unique] [--podman-opt OPTION] [--debug] [--dryrun]
-                     [--refresh] [CMD]
+                     [--podman-opt OPTION] [--debug] [--dryrun] [--refresh]
+                     [CMD]
 
   Run a temporary encapsule container
 
@@ -83,8 +83,6 @@ Available options:
   --readonly               Make the encapsule container filesystem read-only
   --no-network             Disable network access
   --no-sudo                Skip passwordless sudo setup
-  --unique                 Run a new encapsule container even if one is already
-                           running
   --podman-opt OPTION      Pass an option directly to podman
   --debug                  Show debug output
   --dryrun                 Print the podman command instead of running it
