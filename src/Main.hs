@@ -60,13 +60,13 @@ main = do
       <$> toolboxArg
       <*> optional projectNameOpt
     , Subcommand "enter" "Connect to a (running) encapsule container" $
+    , Subcommand "create" "Create an encapsule container" $
+      runCmd <$> runOpts True
       enterCmd
       <$> dryrunOpt
       <*> pure True
       <*> optional toolboxArg
       <*> optional projectNameOpt
-    , Subcommand "start" "Create an encapsule container" $
-      runCmd <$> runOpts True
     , Subcommand "run" "Run a temporary encapsule container" $
       runCmd <$> runOpts False
     ]
