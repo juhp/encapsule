@@ -59,16 +59,16 @@ main = do
       stopCmd
       <$> toolboxArg
       <*> optional projectNameOpt
-    , Subcommand "enter" "Connect to a (running) encapsule container" $
     , Subcommand "create" "Create an encapsule container" $
-      runCmd <$> runOpts True
+      runCmd <$> runOpts True False
+    , Subcommand "enter" "Connect to a encapsule container" $
       enterCmd
       <$> dryrunOpt
       <*> pure True
       <*> optional toolboxArg
       <*> optional projectNameOpt
     , Subcommand "run" "Run a temporary encapsule container" $
-      runCmd <$> runOpts False
+      runCmd <$> runOpts False True
     ]
   where
     dryrunOpt = switchLongWith "dryrun" "Print the podman command instead of running it"
@@ -82,7 +82,7 @@ main = do
 
     toolboxArg = argumentWith str "TOOLBOX"
 
-    runOpts keep =
+    runOpts keep unique =
       RunOpts
       <$> toolboxArg
       <*> many (strOptionWith 'v' "volume" "HOST:CONTAINER[:opts]" "Bind mounts (default to selinux :z)")
@@ -97,7 +97,7 @@ main = do
       <*> switchLongWith "readonly" "Make the encapsule container filesystem read-only"
       <*> switchLongWith "no-network" "Disable network access"
       <*> switchLongWith "no-sudo" "Skip passwordless sudo setup"
-      <*> switchLongWith "unique" "Run a new encapsule container even if one is already running"
+      <*> pure unique
       <*> many (strOptionLongWith "podman-opt" "OPTION" "Pass an option directly to podman")
       <*> switchLongWith "debug" "Show debug output"
       <*> dryrunOpt
@@ -226,8 +226,12 @@ runCmd (RunOpts {..}) = do
   container <-
     if unique
     then do
-      pid <- getProcessID
-      return $ containerName +=+ show pid
+      exists <- cmdBool "podman" ["container", "exists", containerName]
+      if exists
+        then do
+        pid <- getProcessID
+        return $ containerName +=+ show pid
+        else return containerName
     else return containerName
   debug $ "container:" +-+ container
   running <-
