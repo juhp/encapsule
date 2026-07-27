@@ -46,6 +46,7 @@ Available commands:
   stop                     Stop an encapsule container
   create                   Create an encapsule container
   enter                    Connect to a encapsule container
+  refresh                  Update an encapsule image from a toolbox container
   run                      Run a temporary encapsule container
 ```
 

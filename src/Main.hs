@@ -4,7 +4,7 @@
 
 module Main (main) where
 
-import Control.Monad (unless, when, (>=>))
+import Control.Monad (unless, void, when, (>=>))
 import Data.List.Extra (intercalate, splitOn)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isNothing, mapMaybe)
@@ -60,15 +60,20 @@ main = do
       <$> toolboxArg
       <*> optional projectNameOpt
     , Subcommand "create" "Create an encapsule container" $
-      runCmd <$> runOpts True False
+      runCmd <$> runOpts True False False
     , Subcommand "enter" "Connect to a encapsule container" $
       enterCmd
       <$> dryrunOpt
       <*> pure True
       <*> optional toolboxArg
       <*> optional projectNameOpt
+    , Subcommand "refresh" "Update an encapsule image from a (toolbox) container" $
+      refreshCmd
+      <$> dryrunOpt
+      <*> switchLongWith "force" "Re-commit even if the image looks up to date (Created only changes when the toolbox is recreated)"
+      <*> toolboxArg
     , Subcommand "run" "Run a temporary encapsule container" $
-      runCmd <$> runOpts False True
+      runCmd <$> runOpts False True True
     ]
   where
     dryrunOpt = switchLongWith "dryrun" "Print the podman command instead of running it"
@@ -82,7 +87,7 @@ main = do
 
     toolboxArg = argumentWith str "TOOLBOX"
 
-    runOpts keep unique =
+    runOpts keep unique refresh' =
       RunOpts
       <$> toolboxArg
       <*> many (strOptionWith 'v' "volume" "HOST:CONTAINER[:opts]" "Bind mounts (default to selinux :z)")
@@ -101,7 +106,9 @@ main = do
       <*> many (strOptionLongWith "podman-opt" "OPTION" "Pass an option directly to podman")
       <*> switchLongWith "debug" "Show debug output"
       <*> dryrunOpt
-      <*> switchLongWith "refresh" "Force re-commit of the toolbox image"
+      <*> (if refresh'
+           then switchLongWith "refresh" "Force re-commit of the toolbox image"
+           else pure False)
       <*> many (argumentWith str "CMD")
 
 
@@ -223,23 +230,21 @@ runCmd (RunOpts {..}) = do
   mprojectDir <- traverse resolveProject mproject
   containerName <-
     mkContainerName toolbox $ maybe (Project <$> mproject) (Just . Name) mname
+  exists <- cmdBool "podman" ["container", "exists", containerName]
+  debug $ containerName +-+ "exists"
+  when (keep && not unique && exists) $
+    error' $ "container" +-+ containerName +-+ "already exists"
   container <-
-    if unique
+    if unique && exists
     then do
-      exists <- cmdBool "podman" ["container", "exists", containerName]
-      if exists
-        then do
-        pid <- getProcessID
-        return $ containerName +=+ show pid
-        else return containerName
+      pid <- getProcessID
+      return $ containerName +=+ show pid
     else return containerName
   debug $ "container:" +-+ container
   running <-
     if unique
     then return False
-    else do
-      exists <- cmdBool "podman" ["container", "exists", container]
-      debug $ container +-+ "exists"
+    else
       if exists
         then do
           (_, out, _) <- cmdFull "podman"
@@ -382,6 +387,31 @@ runCmd (RunOpts {..}) = do
     debug msg = when debugging $ warning $ "debug:" +-+ msg
 
 -- image management
+
+refreshCmd :: Bool -> Bool -> String -> IO ()
+refreshCmd dryrun force toolbox = do
+  containerExists <- cmdBool "podman" ["container", "exists", toolbox]
+  unless containerExists $
+    error' $ "container '" ++ toolbox ++ "' not found"
+  let image = progname +=+ toolbox
+  imageExists <- cmdBool "podman" ["image", "exists", image]
+  unless imageExists $
+    error' $ "image" +-+ image +-+ "not found (create or run first)"
+  needsCommit <-
+    if force
+    then return True
+    else do
+      imageCreated <- inspectCreated image
+      toolboxCreated <- inspectCreated toolbox
+      return (imageCreated < toolboxCreated)
+  if needsCommit
+    then void $ commitToolbox dryrun toolbox True
+    else putStrLn $ image +-+ "is up to date"
+
+inspectCreated :: String -> IO String
+inspectCreated name = do
+  (_, out, _) <- cmdFull "podman" ["inspect", "-f", "{{.Created}}", name] ""
+  return $ filter (/= '\n') out
 
 commitToolbox :: Bool -> String -> Bool -> IO String
 commitToolbox dryrun toolbox refresh = do
