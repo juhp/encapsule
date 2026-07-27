@@ -51,6 +51,7 @@ executable encapsule
                      , simple-cmd >= 0.2.3
                      , simple-cmd-args >= 0.1.8
                      , text
+                     , time
                      , toml-reader
                      , unix
                      , xdg-basedir
