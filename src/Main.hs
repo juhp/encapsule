@@ -42,7 +42,8 @@ main = do
   hSetBuffering stdout NoBuffering
   simpleCmdArgs (Just version)
     progname
-    "Run a toolbox image in an isolated podman container" $
+    ("Run a toolbox image in an isolated podman container" +-+
+     "https://github.com/juhp/encapsule#readme") $
     subcommands
     -- FIXME add/separate: create/enter/run
     [ Subcommand "list" "List encapsule images and containers" $
