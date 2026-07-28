@@ -97,6 +97,7 @@ main = do
       <*> many (strOptionWith 'P' "path" "DIR" "Prepend a directory to PATH inside the container")
       <*> many (strOptionWith 'i' "init" "CMD" "A bash snippet run when creating the encapsule container")
       <*> many (strOptionLongWith "cap" "NAME" "Enable a capability from the config file")
+      <*> switchLongWith "pull" "Pull newer container image"
       <*> optional (strOptionLongWith "home" "DIR" "Mount a directory as a writable home (created if missing)")
       <*> optional (projectOpt "Mount a (project) directory as workdir")
       <*> optional nameOpt
@@ -212,6 +213,7 @@ data RunOpts = RunOpts
   , paths :: [String]
   , inits :: [String]
   , caps :: [String]
+  , pull :: Bool
   , mhome :: Maybe FilePath
   , mproject :: Maybe FilePath
   , mname :: Maybe String
@@ -289,9 +291,13 @@ runCmd (RunOpts {..}) = do
       debug $ if isImage
               then "image:" +-+ toolbox
               else "toolbox:" +-+ toolbox
-      image <- if isImage
-               then return toolbox
-               else commitToolbox dryrun toolbox refresh
+      image <-
+        if isImage
+        then do
+          when pull $
+            cmd_ "podman" ["pull", toolbox]
+          return toolbox
+        else commitToolbox dryrun toolbox refresh
       config <- loadConfig
       let capabilities = getCapabilities config
 
