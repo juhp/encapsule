@@ -307,7 +307,7 @@ runCmd (RunOpts {..}) = do
       homeVol <-
         case mtemphome of
           Just temphome -> do
-            createDirectoryIfMissing True homedir
+            createDirectoryIfMissing True temphome
             return [temphome ++ ":" ++ homedir]
           Nothing -> return []
 
