@@ -47,7 +47,7 @@ main = do
     -- FIXME add/separate: create/enter/run
     [ Subcommand "list" "List encapsule images and containers" $
       pure listCmd
-    , Subcommand "list-caps" "List encapsule images and containers" $
+    , Subcommand "list-caps" "List available capabilities" $
       pure listCapsCmd
     , Subcommand "rm" "Remove an encapsule container" $
       removeCmd
