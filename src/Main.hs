@@ -184,11 +184,13 @@ enterCmd dryrun running mbase mprojectname = do
     [] ->
       if running
       then do
-        warning "no encapsule container running"
         enterCmd dryrun False mbase mprojectname
       else error' "no encapsule container found"
-    [c] -> enterContainer dryrun True c []
-    _ -> error' $ "multiple running containers match:\n" ++ unlines ps
+    [c] -> do
+      unless running $
+        warning "no running encapsule container found"
+      enterContainer dryrun True c []
+    _ -> error' $ "multiple" +-+ (if running then  "running" else "") +-+ "containers match:\n" ++ unlines ps
 
 enterContainer :: Bool -> Bool -> String -> [String] -> IO ()
 enterContainer dryrun running container command = do
