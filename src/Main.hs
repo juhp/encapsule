@@ -290,6 +290,10 @@ runCmd (RunOpts {..}) = do
   where
     createContainer homedir mprojectDir container = do
       mtemphome <- traverse (expandPath homedir >=> canonicalizePath) mhome
+      case (mtemphome, mprojectDir) of
+        (Just h, Just p) | h == p ->
+          error' "--home and --project must be different directories"
+        _ -> return ()
       let isImage = ':' `elem` toolbox
       debug $ if isImage
               then "image:" +-+ toolbox
@@ -324,7 +328,14 @@ runCmd (RunOpts {..}) = do
               then return [d ++ ':' : d]
               else error' $ "project dir not found:" +-+ d
           Nothing -> return []
-      let volumes = homeVol ++ vols ++ extraVols ++ projectVol
+      -- mounting real $HOME needs label=disable (no :z) on Fedora/SELinux
+      let mountsRealHome =
+            Just homedir == mtemphome || Just homedir == mprojectDir
+          securityOpts =
+            extraSecurityOpts ++
+            ["label=disable" | mountsRealHome,
+             "label=disable" `notElem` extraSecurityOpts]
+          volumes = homeVol ++ vols ++ extraVols ++ projectVol
           envVars = envs ++ extraEnvs
           allpaths = paths ++ extraPaths
           allinits = inits ++ extraInits
@@ -362,6 +373,8 @@ runCmd (RunOpts {..}) = do
                   ["exec runuser -u" +-+ username +-+ "--" +-+ runuserCmd])
                   ++ fallback
 
+      when ("label=disable" `elem` securityOpts) $
+        warning "SELinux labeling disabled for this container (label=disable)"
       unless dryrun $ debug $ "setup:" +-+ setup
       mounts <- mapM (addSelinuxLabel homedir) volumes
 
@@ -383,7 +396,7 @@ runCmd (RunOpts {..}) = do
                               Just _ -> []
                     else [])
                 ++ (if nonetwork then ["--net", "none"] else [])
-                ++ concatMap (\s -> ["--security-opt", s]) extraSecurityOpts
+                ++ concatMap (\s -> ["--security-opt", s]) securityOpts
                 ++ concatMap (\m -> ["-v", m]) mounts
                 ++ concatMap (\e -> ["-e", e]) envVars
                 ++ podmanopts
@@ -564,8 +577,8 @@ addSelinuxLabel homedir spec =
   case break (== ':') spec of
     (hostPart, []) -> do
       hostExp <- expandPath homedir hostPart
-      sockFile <- isSocketFile hostExp
-      return $ hostExp ++ ":" ++ hostExp ++ if sockFile then "" else ":z"
+      skipLabel <- shouldSkipLabel hostExp
+      return $ hostExp ++ ":" ++ hostExp ++ if skipLabel then "" else ":z"
     (hostPart, _:rest') -> do
       hostExp <- expandPath homedir hostPart
       let (containerPart, optsPart)
@@ -575,15 +588,15 @@ addSelinuxLabel homedir spec =
                   (c, _:o) -> (c, Just o)
             | otherwise = (hostExp, if null rest' then Nothing else Just rest')
       containerExp <- expandPath homedir containerPart
-      sockFile <- isSocketFile hostExp
+      skipLabel <- shouldSkipLabel hostExp
       let labeled = case optsPart of
             Nothing ->
-              if sockFile
+              if skipLabel
               then hostExp ++ ":" ++ containerExp
               else hostExp ++ ":" ++ containerExp ++ ":z"
             Just o ->
               let flags = splitOn "," o
-              in if sockFile || "z" `elem` flags || "Z" `elem` flags
+              in if skipLabel || "z" `elem` flags || "Z" `elem` flags
                  then hostExp ++ ":" ++ containerExp ++ ":" ++ o
                  else hostExp ++ ":" ++ containerExp ++ ":" ++ o ++ ",z"
       return labeled
@@ -592,6 +605,11 @@ addSelinuxLabel homedir spec =
     isPathStart ('~':_) = True
     isPathStart ('$':_) = True
     isPathStart _       = False
+
+    -- sockets and real $HOME must not get :z (HOME uses label=disable instead)
+    shouldSkipLabel hostExp = do
+      sockFile <- isSocketFile hostExp
+      return $ sockFile || hostExp == homedir
 
 isSocketFile :: FilePath -> IO Bool
 isSocketFile path = do
@@ -641,7 +659,7 @@ resolveProject dir = do
   homedir <- getHomeDirectory >>= canonicalizePath
   finaldir <- expandPath homedir dir >>= canonicalizePath
   when (finaldir == homedir) $
-    error' "mounting $HOME not supported!"
+    warning "mounting $HOME as project (consider a subdirectory)"
   return finaldir
 
 -- container naming
