@@ -242,6 +242,7 @@ runCmd (RunOpts {..}) = do
   when (keep && not unique && exists) $
     error' $ "container" +-+ containerName +-+ "already exists"
   container <-
+    -- FIXME Coderabbit pointed out this could lead to race with 2 invocations
     if unique && exists
     then do
       pid <- getProcessID
