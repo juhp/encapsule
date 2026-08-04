@@ -16,6 +16,10 @@ encapsule COMMAND TOOLBOX [options] [CMD...]
 ```
 
 if TOOLBOX is a container it will be committed (saved) to an "encapsule" container image from the named toolbox container using buildah.
+(Though toolbox containers are recommended, as such it doesn't have to be a toolbox container.)
+Your original toolbox container is left untouched: its system configuration and fs are just used as the base fs for the encapsule image.
+
+Encapsule images and containers are prefixed by `encapsule-`.
 
 ## Usage
 
@@ -50,11 +54,13 @@ Available commands:
   run                      Run a temporary encapsule container
 ```
 
-### `run` and `start` commands
+There are 3 main commands: `run`, `create`, and `enter`.
+`run` and `create` share many options.
 
-These are the 2 main commands: the difference between them
-is that `run` starts a temporary encapsule container (removed on exit),
-whereas `start` creates and enters a container that is kept (stopped on exit).
+### `run` command
+
+`run` starts a temporary encapsule container (removed on exit)
+from a (toolbox) image or container.
 
 `$ encapsule run --help`
 
@@ -91,15 +97,21 @@ Available options:
   -h,--help                Show this help text
 ```
 
+### `create` command
+`create` is similar but creates a reusable container for a project or tmp home.
+
+### `enter` command
+`enter` is used to join an existing (typically running) encapsule container.
+
 ## Examples
 
 ```bash
 # Temporary isolated shell without host fs access
-$ encapsule run my-toolbox
+~$ encapsule run my-toolbox
 
 # Mount current (project) directory in / and set it as the working directory
 # (also names the container after the project, e.g. encapsule-my-toolbox-myproject)
-$ encapsule start my-toolbox -p .
+~/myproj$ encapsule create my-toolbox -p .
 
 # Bind mount a volume
 $ encapsule run my-toolbox -v ~/data:/data
@@ -107,8 +119,8 @@ $ encapsule run my-toolbox -v ~/data:/data
 # Mount a temp "home" directory (created if it doesn't exist)
 $ encapsule run my-toolbox --home /tmp/somedir
 
-# Use capabilities from config
-$ encapsule start my-toolbox --cap ssh --cap git
+# Use capabilities from one's config
+$ encapsule create my-toolbox --cap ssh --cap git
 
 # Read-only container filesystem
 $ encapsule run my-toolbox --readonly
@@ -129,7 +141,8 @@ $ encapsule run --dryrun my-toolbox
 $ encapsule run fedora:44 --home tmphome
 ```
 
-Note the saved image will be reused next time unless using `--refresh`.
+Note a saved encapsule image remains cached for next time,
+but can be removed with the `rmi` command.
 
 ## Capabilities
 
@@ -169,7 +182,7 @@ If the host and container paths are the same, you can use the shorthand
 1. Commits the named toolbox container to an encapsule image using `buildah commit`
    (reuses the existing image unless `--refresh` is passed)
 2. Runs `podman run` with `--userns=keep-id` so you are your own user, not root
-3. Tries to install runuser (util-linux) and sudo if they are missing with dnf or apt-get.
+3. Tries to install runuser (util-linux) and sudo (unless `--no-sudo`) if they are missing with dnf or apt-get.
 4. Sets up passwordless `sudo` inside the encapsule container (unless `--no-sudo`)
 5. Bind mounts get SELinux `:z` (shared) labels automatically,
    so multiple containers can safely access the same directories
@@ -211,6 +224,8 @@ stack install
 I already mentioned [toolbox-constrained](https://github.com/swick/toolbox-constrained) from which the initial code was derived.
 
 There is also similarly [schupfn](https://github.com/whot/schupfn/) which uses QEMU to run a toolbox container image in a VM with a direct private ssh connection.
+
+Another somewhat related project is [podenv](https://github.com/podenv/podenv), which "provides a declarative interface to manage containerized applications."
 
 For stronger sandboxing and isolation, specially network, consider using [OpenShell](https://github.com/NVIDIA/OpenShell/). At some point this project might move to wrapping openshell possibly.
 
