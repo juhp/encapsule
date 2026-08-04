@@ -3,12 +3,12 @@
 CLI tool to run developer containers, isolating your home directory and host from general effects inside the containers:
 "encapsules" a project and/or temp home dir together with select "capabilities".
 
-Originally derived from [toolbox-constrained](https://github.com/swick/toolbox-constrained) tool.
+Originally derived from [toolbox-constrained](https://github.com/swick/toolbox-constrained).
 
 Run a ([toolbox](https://containertoolbx.org/)) container or image as
 an isolated podman container. Unlike with `toolbox create`, this does *not*
 bind-mount your home directory or integrate with the host by default.
-You can explicitly choose what dir(s) to mount or features to enable,
+You can explicitly choose what dir(s) or file(s) to mount or features to enable,
 selecting user-configured "capabilities" that the encapsule container can access.
 
 ```
@@ -100,7 +100,7 @@ Available options:
 ```
 
 ### `create` command
-`create` is similar but creates a reusable container for a project or tmp home.
+`create` is similar but creates a reusable container for a project and/or tmp home.
 
 ### `enter` command
 `enter` is used to join an existing (typically running) encapsule container.
@@ -111,7 +111,7 @@ Available options:
 # Temporary isolated shell without host fs access
 ~$ encapsule run my-toolbox
 
-# Mount current (project) directory in / and set it as the working directory
+# Mount current (project) directory path and set it as the working directory
 # (also names the container after the project, e.g. encapsule-my-toolbox-myproject)
 ~/myproj$ encapsule create my-toolbox -p .
 
@@ -195,7 +195,7 @@ If the host and container paths are the same, you can use the shorthand
 
 ## Installation
 
-A copr repo is available for Fedora and Epel 10:
+A copr repo is available for Fedora and EPEL 10:
 
 <https://copr.fedorainfracloud.org/coprs/petersen/encapsule/>
 
@@ -219,7 +219,7 @@ stack install
 
 - [podman](https://podman.io/) and [buildah](https://buildah.io/)
 - An existing (toolbox) container (created with `toolbox create`) or image.
-- Alternatively some non-toolbox other container/images may also work.
+- Alternatively some other non-toolbox container/images may also work.
 
 ## Related projects
 
@@ -229,7 +229,7 @@ There is also similarly [schupfn](https://github.com/whot/schupfn/) which uses Q
 
 Another somewhat related project is [podenv](https://github.com/podenv/podenv), which "provides a declarative interface to manage containerized applications."
 
-For stronger sandboxing and isolation, specially network, consider using [OpenShell](https://github.com/NVIDIA/OpenShell/). At some point this project might move to wrapping openshell possibly.
+For stronger sandboxing and isolation, specially network, consider using [OpenShell](https://github.com/NVIDIA/OpenShell/). At some point this project might move to wrapping or supporting openshell possibly.
 
 ## Disclaimer
 The simple isolation provided is limited best effort and
