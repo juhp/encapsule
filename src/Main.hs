@@ -385,10 +385,14 @@ runCmd (RunOpts {..}) = do
               Nothing -> []
           args = "run" :
                  [ "--rm" | not keep] ++
-                 [ "-it", "--userns=keep-id",
-                   "--name", container, "--hostname", hostnameFromName container,
-                   "--user", "root", "-e", "HOME=" ++ homedir,
-                   "-e", "TERM", "-e", "COLORTERM"]
+                 [ "-it",
+                   "--userns=keep-id",
+                   "--name", container,
+                   "--hostname", hostnameFromName container,
+                   "--user", "root",
+                   "-e", "HOME=" ++ homedir,
+                   "-e", "TERM",
+                   "-e", "COLORTERM"]
                 ++ workdirPart
                 ++ (if readonly
                     then ["--read-only", "--tmpfs", "/tmp", "--tmpfs", "/run"]
