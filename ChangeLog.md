@@ -1,14 +1,18 @@
 # encapsule releases
 
-## 0.4 (2026-07-23)
+## 0.4 (2026-08-04)
 - convert to using subcommands
 - `list`: separate images and containers and include image tags
-- introduce `start` (= run --keep)
+- introduce `create` to make a permanent container
 - add `enter` command (formerly --join)
+- `run`: automate unique container name (drop --unique)
+- new `refresh` command to update an existing encapsule toolbox image if container has layered changes
 - correct some container name sanitizations
 - check that the host project dir actually exists
 - improve HOME handling and mount project to its own path for clarity
 - also default workdir to home for image
+- add `--pull` for `run` and `create` to pull a newer image
+- Allow mounting $HOME (without SELinux :z relabeling)
 
 ## 0.3 (2026-07-20)
 - project renamed from constrained-toolbox
