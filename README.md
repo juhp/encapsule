@@ -37,6 +37,7 @@ encapsule
 Usage: encapsule [--version] COMMAND
 
   Run a toolbox image in an isolated podman container
+  https://github.com/juhp/encapsule#readme
 
 Available options:
   -h,--help                Show this help text
@@ -44,13 +45,13 @@ Available options:
 
 Available commands:
   list                     List encapsule images and containers
-  list-caps                List encapsule images and containers
+  list-caps                List available capabilities
   rm                       Remove an encapsule container
   rmi                      Remove an encapsule image
   stop                     Stop an encapsule container
   create                   Create an encapsule container
   enter                    Connect to a encapsule container
-  refresh                  Update an encapsule image from a toolbox container
+  refresh                  Update an encapsule image from a (toolbox) container
   run                      Run a temporary encapsule container
 ```
 
@@ -67,7 +68,7 @@ from a (toolbox) image or container.
 ```
 Usage: encapsule run TOOLBOX [-v|--volume HOST:CONTAINER[:opts]]
                      [-e|--env KEY[=VALUE]] [-P|--path DIR] [-i|--init CMD]
-                     [--cap NAME] [--home DIR] [-p|--project DIR]
+                     [--cap NAME] [--pull] [--home DIR] [-p|--project DIR]
                      [-n|--name NAME] [--readonly] [--no-network] [--no-sudo]
                      [--podman-opt OPTION] [--debug] [--dryrun] [--refresh]
                      [CMD]
@@ -82,6 +83,7 @@ Available options:
   -i,--init CMD            A bash snippet run when creating the encapsule
                            container
   --cap NAME               Enable a capability from the config file
+  --pull                   Pull newer container image
   --home DIR               Mount a directory as a writable home (created if
                            missing)
   -p,--project DIR         Mount a (project) directory as workdir
