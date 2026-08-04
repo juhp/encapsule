@@ -386,7 +386,7 @@ runCmd (RunOpts {..}) = do
           args = "run" :
                  [ "--rm" | not keep] ++
                  [ "-it", "--userns=keep-id",
-                   "--name", container, "--hostname", container,
+                   "--name", container, "--hostname", hostnameFromName container,
                    "--user", "root", "-e", "HOME=" ++ homedir,
                    "-e", "TERM", "-e", "COLORTERM"]
                 ++ workdirPart
@@ -669,6 +669,10 @@ sanitizeName :: String -> String
 sanitizeName = map (\c -> if c `elem` nameChars then c else '-')
   where
     nameChars = ['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9'] ++ "_.-"
+
+-- Dots separate DNS labels in hostnames, so replace them for --hostname.
+hostnameFromName :: String -> String
+hostnameFromName = map (\c -> if c == '.' then '-' else c)
 
 workProjectName :: FilePath -> String
 workProjectName = sanitizeName . takeFileName
