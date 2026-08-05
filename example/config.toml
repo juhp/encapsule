@@ -4,19 +4,23 @@ volumes = ["~/.ssh:~/.ssh:ro"]
 [capabilities.git]
 volumes = ["~/.gitconfig:ro"]
 
+# gtk4 needs libglvnd-gles
 [capabilities.wayland]
 env = ["WAYLAND_DISPLAY", "XDG_RUNTIME_DIR"]
 volumes = ["$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"]
 security_opts = ["label=disable"]
 
+[capabilities.dbus]
+volumes = ["/run/dbus/system_bus_socket"]
+
+[capabilities.dconf]
+volumes = ["$XDG_RUNTIME_DIR/dconf"]
+
+[capabilities.machine-id]
+volumes = ["/etc/machine-id:ro"]
+
 [capabilities.rust]
 path = ["~/.cargo/bin"]
 
-[capabilities.claude]
-volumes = [
-    "~/.claude",
-    "~/.claude.json",
-]
-
-[capabilities.default]
-volumes = ["~/.config/isolation:~:rw"]
+[capabilities.isolation]
+volumes = ["~/isolation:~:rw"]
