@@ -20,8 +20,8 @@ import System.FilePath ((</>), takeFileName)
 import System.IO (BufferMode(NoBuffering), hSetBuffering, stdout)
 import System.Posix.Process (getProcessID)
 import System.Posix.Env (getEnvDefault)
-import System.Posix.Files (getFileStatus, isSocket)
-import System.Posix.User (getEffectiveUserName)
+import System.Posix.Files (fileOwner, getFileStatus, isSocket)
+import System.Posix.User (getEffectiveUserID, getEffectiveUserName)
 import System.Process (rawSystem)
 import Data.Time.Clock (UTCTime)
 import Data.Time.Format (defaultTimeLocale, parseTimeM)
@@ -582,10 +582,12 @@ addSelinuxLabel homedir spec =
   case break (== ':') spec of
     (hostPart, []) -> do
       hostExp <- expandPath homedir hostPart
+      requireVolumeHost hostExp
       skipLabel <- shouldSkipLabel hostExp
       return $ hostExp ++ ":" ++ hostExp ++ if skipLabel then "" else ":z"
     (hostPart, _:rest') -> do
       hostExp <- expandPath homedir hostPart
+      requireVolumeHost hostExp
       let (containerPart, optsPart)
             | isPathStart rest' =
                 case break (== ':') rest' of
@@ -611,17 +613,28 @@ addSelinuxLabel homedir spec =
     isPathStart ('$':_) = True
     isPathStart _       = False
 
-    -- sockets and real $HOME must not get :z (HOME uses label=disable instead)
+    -- Skip auto :z for sockets, real $HOME (uses label=disable), and paths we
+    -- cannot relabel (rootless lsetxattr fails on files owned by another user).
     shouldSkipLabel hostExp = do
       sockFile <- isSocketFile hostExp
-      return $ sockFile || hostExp == homedir
+      selfOwned <- ownedBySelf hostExp
+      return $ sockFile || hostExp == homedir || not selfOwned
+
+requireVolumeHost :: FilePath -> IO ()
+requireVolumeHost path = do
+  exists <- doesPathExist path
+  unless exists $
+    error' $ "volume host path not found:" +-+ path
 
 isSocketFile :: FilePath -> IO Bool
-isSocketFile path = do
-  exists <- doesPathExist path
-  if exists
-    then isSocket <$> getFileStatus path
-    else return False
+isSocketFile path = isSocket <$> getFileStatus path
+
+-- Rootless podman cannot lsetxattr on files owned by another uid (e.g. /etc/*).
+ownedBySelf :: FilePath -> IO Bool
+ownedBySelf path = do
+  uid <- getEffectiveUserID
+  st <- getFileStatus path
+  return $ fileOwner st == uid
 
 -- path and env expansion
 
