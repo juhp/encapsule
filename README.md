@@ -131,7 +131,7 @@ $ encapsule run my-toolbox --readonly
 $ encapsule rm my-toolbox
 
 # Set environment variables and prepend to PATH
-$ encapsule run my-toolbox -e MY_VAR=hello -P ~/.local/bin
+$ encapsule run my-toolbox -e MY_VAR=hello --path ~/.local/bin
 
 # Run a specific command
 $ encapsule run my-toolbox -- ls /

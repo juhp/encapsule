@@ -95,11 +95,11 @@ main = do
       <$> toolboxArg
       <*> many (strOptionWith 'v' "volume" "HOST:CONTAINER[:opts]" "Bind mounts (default to selinux :z)")
       <*> many (strOptionWith 'e' "env" "KEY[=VALUE]" "Set or pass through an environment variable")
-      <*> many (strOptionWith 'P' "path" "DIR" "Prepend a directory to PATH inside the container")
+      <*> many (strOptionLongWith "path" "DIR" "Prepend a directory to PATH inside the container")
       <*> many (strOptionWith 'i' "init" "CMD" "A bash snippet run when creating the encapsule container")
       <*> many (strOptionLongWith "cap" "NAME" "Enable a capability from the config file")
       <*> switchLongWith "pull" "Pull newer container image"
-      <*> optional (strOptionLongWith "home" "DIR" "Mount a directory as a writable home (created if missing)")
+      <*> optional (strOptionWith 'H' "home" "DIR" "Mount a directory as a writable home (created if missing)")
       <*> optional (projectOpt "Mount a (project) directory as workdir")
       <*> optional nameOpt
       <*> pure keep
