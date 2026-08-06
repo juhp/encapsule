@@ -113,6 +113,7 @@ main = do
       <*> switchLongWith "readonly" "Make the encapsule container filesystem read-only"
       <*> switchLongWith "no-network" "Disable network access"
       <*> switchLongWith "no-sudo" "Skip passwordless sudo setup"
+      <*> switchLongWith "no-skel" "Don't copy /etc/skel into an empty home"
       <*> pure unique
       <*> many (strOptionLongWith "podman-opt" "OPTION" "Pass an option directly to podman")
       <*> switchLongWith "debug" "Show debug output"
@@ -231,6 +232,7 @@ data RunOpts = RunOpts
   , readonly :: Bool
   , nonetwork :: Bool
   , nosudo :: Bool
+  , noskel :: Bool
   , unique :: Bool
   , podmanopts :: [String]
   , debugging :: Bool
@@ -291,6 +293,7 @@ runCmd (RunOpts {..}) = do
             , not readonly
             , not nonetwork
             , not nosudo
+            , not noskel
             , null podmanopts
             , not refresh
             ]
@@ -374,6 +377,12 @@ runCmd (RunOpts {..}) = do
             then ["mkdir -p" +-+ homedir,
                   "chown" +-+ username +-+ homedir]
             else []
+          skelSetup =
+            [ "if [ ! -e " ++ shellQuote (homedir </> ".bashrc") ++
+              " ] && [ -d /etc/skel ]; then " ++
+              "runuser -u" +-+ username +-+ "-- cp -an /etc/skel/." +-+
+              shellQuote (homedir ++ "/") ++ "; fi"
+            | not noskel ]
           -- podman --workdir requires the path to exist at start; for no
           -- --workdir/--project, mkdir home first then cd (see workdirPart)
           cdHome = ["cd" +-+ shellQuote homedir | isNothing mprojectDir]
@@ -383,8 +392,9 @@ runCmd (RunOpts {..}) = do
             else ""
           trace = ["set -x" | debugging]
           setup = intercalate " && "
-                  (trace ++ installSetup ++ sudoSetup ++ homeSetup ++ cdHome ++
-                  [initSetup | not (null allinits)] ++
+                  (trace ++ installSetup ++ sudoSetup ++ homeSetup ++ skelSetup ++
+                   cdHome ++
+                  [mkInitSetup allinits | not (null allinits)] ++
                   ["exec runuser -u" +-+ username +-+ "--" +-+ runuserCmd])
                   ++ fallback
 
