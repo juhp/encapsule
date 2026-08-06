@@ -355,10 +355,10 @@ runCmd (RunOpts {..}) = do
           allpaths = paths ++ extraPaths
           allinits = inits ++ extraInits
 
-          envParts = ("HOME=" ++ homedir) : pathEnvPart allpaths
-          initSetup = mkInitSetup allinits
-          userCmdParts = mkUserCmd command allinits
-          runuserCmd = "env" +-+ unwords (envParts ++ map shellQuote userCmdParts)
+          runuserCmd =
+            let envParts = ("HOME=" ++ homedir) : pathEnvPart allpaths
+                userCmdParts = mkUserCmd command allinits
+            in "env" +-+ unwords (envParts ++ map shellQuote userCmdParts)
 
           sudoers = "/etc/sudoers.d" </> progname
           installSetup =
