@@ -10,23 +10,24 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isNothing, mapMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
-import Safe (headMay, lastMay)
+import Safe (headMay, lastMay, readMay)
 import System.Directory (canonicalizePath, createDirectoryIfMissing,
                          doesDirectoryExist, doesFileExist, doesPathExist,
                          getHomeDirectory, getModificationTime)
 import System.Environment.XDG.BaseDir (getUserConfigFile)
 import System.Exit (exitWith, exitFailure)
-import System.FilePath ((</>), takeFileName)
+import System.FilePath ((</>), takeDirectory, takeFileName)
 import System.IO (BufferMode(NoBuffering), hSetBuffering, stdout)
 import System.Posix.Process (getProcessID)
 import System.Posix.Env (getEnvDefault)
 import System.Posix.Files (fileOwner, getFileStatus, isSocket)
 import System.Posix.User (getEffectiveUserID, getEffectiveUserName)
 import System.Process (rawSystem)
-import Data.Time.Clock (UTCTime)
-import Data.Time.Format (defaultTimeLocale, parseTimeM)
-import SimpleCmd (cmd_, cmdBool, cmdFull, cmdLines, warning, (+-+))
+import Data.Time.Clock (UTCTime, getCurrentTime)
+import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
+import SimpleCmd (cmd, cmd_, cmdBool, cmdFull, cmdLines, warning, (+-+))
 import SimpleCmdArgs
+import SimplePrompt (yesNo)
 import TOML (Value(..), Table, renderTOMLError, decodeFile)
 
 import Paths_encapsule (version)
@@ -62,6 +63,12 @@ main = do
       stopCmd
       <$> toolboxArg
       <*> optional projectNameOpt
+    , Subcommand "backup" "Create a tarball backup of a directory" $
+      backupCmd
+      <$> dryrunOpt
+      <*> switchWith 'y' "yes" "Don't prompt for large directories"
+      <*> optional (strOptionWith 'o' "output" "FILE" "Output tarball (default: DIR-<timestamp>.tar.gz)")
+      <*> argumentWith str "DIR"
     , Subcommand "create" "Create an encapsule container" $
       runCmd <$> runOpts True False False
     , Subcommand "enter" "Connect to a encapsule container" $
@@ -447,6 +454,63 @@ refreshCmd dryrun force toolbox = do
     then void $ commitToolbox dryrun toolbox True
     else putStrLn $ image +-+ "is up to date"
 
+-- Prompt when backing up more than this many bytes.
+largeBackupBytes :: Integer
+largeBackupBytes = 100 * 1024 * 1024
+
+backupCmd :: Bool -> Bool -> Maybe FilePath -> FilePath -> IO ()
+backupCmd dryrun yes moutput dir = do
+  homedir <- getHomeDirectory >>= canonicalizePath
+  src <- expandPath homedir dir >>= canonicalizePath
+  exists <- doesDirectoryExist src
+  unless exists $
+    error' $ "directory not found:" +-+ src
+  size <- dirSizeBytes src
+  let sizeStr = humanSize size
+  putStrLn $ src +-+ "(" ++ sizeStr ++ ")"
+  when (not yes && size >= largeBackupBytes || size == 0) $ do
+    ok <- yesNo $ "Directory is" +-+ sizeStr ++ ", continue?"
+    unless ok $
+      error' "aborted"
+  out <-
+    case moutput of
+      Just o -> expandPath homedir o
+      Nothing -> do
+        now <- getCurrentTime
+        let stamp = formatTime defaultTimeLocale "%Y-%m-%d_%H:%M:%SZ" now
+        return $ src ++ "-" ++ stamp ++ ".tar.gz"
+  outExists <- doesFileExist out
+  when outExists $
+    if yes
+    then warning $ "overwriting" +-+ out
+    else error' $ "output already exists:" +-+ out +-+ "(use -y to overwrite)"
+  let parent = takeDirectory src
+      base = takeFileName src
+      args = ["czf", out, "-C", parent, base]
+  if dryrun
+    then putStrLn $ unwords $ "tar" : map shellQuote args
+    else do
+      putStrLn $ "Writing" +-+ out
+      cmd_ "tar" args
+
+dirSizeBytes :: FilePath -> IO Integer
+dirSizeBytes path = do
+  out <- cmd "du" ["-sb", path]
+  case words out of
+    (n:_) | Just i <- readMay n -> return i
+    _ -> error' $ "could not determine size of" +-+ path
+
+humanSize :: Integer -> String
+humanSize n
+  | n >= g = show (n `div` g) ++ "G"
+  | n >= m = show (n `div` m) ++ "M"
+  | n >= k = show (n `div` k) ++ "K"
+  | otherwise = show n ++ "B"
+  where
+    k = 1024
+    m = k * 1024
+    g = m * 1024
+
 -- Prefer overlay UpperDir mtime (system changes, not bind mounts);
 -- fall back to StartedAt, then Created.
 toolboxFreshness :: String -> IO (Maybe UTCTime)
@@ -754,11 +818,11 @@ mkUserCmd :: [String] -> [String] -> [String]
 mkUserCmd [] inits = mkUserCmd ["bash"] inits
 mkUserCmd ["bash"] (_:_) =
   ["bash", "--rcfile", "/tmp" </> progname ++ "-init.sh"]
-mkUserCmd cmd inits@(_:_) =
+mkUserCmd com inits@(_:_) =
   let initChain = intercalate " && " inits
-      cmdStr = initChain +-+ "&& exec" +-+ unwords (map shellQuote cmd)
+      cmdStr = initChain +-+ "&& exec" +-+ unwords (map shellQuote com)
   in ["sh", "-c", cmdStr]
-mkUserCmd cmd [] = cmd
+mkUserCmd com [] = com
 
 -- utilities
 
