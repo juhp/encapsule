@@ -81,7 +81,7 @@ main = do
   where
     dryrunOpt = switchLongWith "dryrun" "Print the podman command instead of running it"
 
-    projectOpt = strOptionWith 'p' "project" "DIR"
+    projectOpt = strOptionWith 'p' "project" "DIR[:opts]"
 
     nameOpt = strOptionWith 'n' "name" "NAME" "Optional container name (prefix with '^' prefix to skip 'encapsule-' prefix)"
 
@@ -99,8 +99,8 @@ main = do
       <*> many (strOptionWith 'i' "init" "CMD" "A bash snippet run when creating the encapsule container")
       <*> many (strOptionLongWith "cap" "NAME" "Enable a capability from the config file")
       <*> switchLongWith "pull" "Pull newer container image"
-      <*> optional (strOptionWith 'H' "home" "DIR" "Mount a directory as a writable home (created if missing)")
-      <*> optional (projectOpt "Mount a (project) directory as workdir")
+      <*> optional (strOptionWith 'H' "home" "DIR[:opts]" "Mount a directory as a writable home (created if missing; e.g. DIR:O for overlay)")
+      <*> optional (projectOpt "Mount a (project) directory as workdir (e.g. DIR:O for overlay)")
       <*> optional nameOpt
       <*> pure keep
       <*> switchLongWith "readonly" "Make the encapsule container filesystem read-only"
@@ -234,9 +234,12 @@ data RunOpts = RunOpts
 
 runCmd :: RunOpts -> IO ()
 runCmd (RunOpts {..}) = do
-  mprojectDir <- traverse resolveProject mproject
+  let (mhomeDir, homeMountOpts) = splitDirOptsMaybe mhome
+      (mprojectPath, projectMountOpts) = splitDirOptsMaybe mproject
+  mprojectDir <- traverse resolveProject mprojectPath
   containerName <-
-    mkContainerName toolbox $ maybe (Project <$> mproject) (Just . Name) mname
+    mkContainerName toolbox $
+      maybe (Project <$> mprojectPath) (Just . Name) mname
   debug $ containerName
   exists <- cmdBool "podman" ["container", "exists", containerName]
   when (keep && not unique && exists) $
@@ -288,10 +291,12 @@ runCmd (RunOpts {..}) = do
         error' "cannot give options for an existing container!"
       warning "Entering existing container"
       enterContainer dryrun True container command
-    else createContainer homedir mprojectDir container
+    else createContainer homedir mhomeDir homeMountOpts mprojectDir
+                          projectMountOpts container
   where
-    createContainer homedir mprojectDir container = do
-      mtemphome <- traverse (expandPath homedir >=> canonicalizePath) mhome
+    createContainer homedir mhomeDir homeMountOpts mprojectDir
+                    projectMountOpts container = do
+      mtemphome <- traverse (expandPath homedir >=> canonicalizePath) mhomeDir
       case (mtemphome, mprojectDir) of
         (Just h, Just p) | h == p ->
           error' "--home and --project must be different directories"
@@ -318,7 +323,7 @@ runCmd (RunOpts {..}) = do
         case mtemphome of
           Just temphome -> do
             createDirectoryIfMissing True temphome
-            return [temphome ++ ":" ++ homedir]
+            return [temphome ++ ":" ++ homedir ++ maybeOpts homeMountOpts]
           Nothing -> return []
 
       username <- getEffectiveUserName
@@ -328,7 +333,7 @@ runCmd (RunOpts {..}) = do
           Just d -> do
             exists <- doesDirectoryExist d
             if exists
-              then return [d ++ ':' : d]
+              then return [d ++ ':' : d ++ maybeOpts projectMountOpts]
               else error' $ "project dir not found:" +-+ d
           Nothing -> return []
       -- mounting real $HOME needs label=disable (no :z) on Fedora/SELinux
@@ -591,7 +596,7 @@ addSelinuxLabel homedir spec =
       hostExp <- expandPath homedir hostPart
       requireVolumeHost hostExp
       let (containerPart, optsPart)
-            | isPathStart rest' =
+            | isVolumePathStart rest' =
                 case break (== ':') rest' of
                   (c, [])  -> (c, Nothing)
                   (c, _:o) -> (c, Just o)
@@ -606,15 +611,11 @@ addSelinuxLabel homedir spec =
             Just o ->
               let flags = splitOn "," o
               in if skipLabel || "z" `elem` flags || "Z" `elem` flags
+                    || "O" `elem` flags
                  then hostExp ++ ":" ++ containerExp ++ ":" ++ o
                  else hostExp ++ ":" ++ containerExp ++ ":" ++ o ++ ",z"
       return labeled
   where
-    isPathStart ('/':_) = True
-    isPathStart ('~':_) = True
-    isPathStart ('$':_) = True
-    isPathStart _       = False
-
     -- Skip auto :z for sockets, real $HOME (uses label=disable), and paths we
     -- cannot relabel (rootless lsetxattr fails on files owned by another user).
     shouldSkipLabel hostExp = do
@@ -637,6 +638,31 @@ ownedBySelf path = do
   uid <- getEffectiveUserID
   st <- getFileStatus path
   return $ fileOwner st == uid
+
+-- DIR[:opts] for --home/--project (opts must not look like a path).
+splitDirOpts :: String -> (FilePath, Maybe String)
+splitDirOpts spec =
+  case break (== ':') spec of
+    (dir, []) -> (dir, Nothing)
+    (dir, _:rest)
+      | isVolumePathStart rest -> (spec, Nothing)
+      | otherwise -> (dir, Just rest)
+
+splitDirOptsMaybe :: Maybe String -> (Maybe FilePath, Maybe String)
+splitDirOptsMaybe Nothing = (Nothing, Nothing)
+splitDirOptsMaybe (Just s) =
+  let (dir, opts) = splitDirOpts s
+  in (Just dir, opts)
+
+maybeOpts :: Maybe String -> String
+maybeOpts Nothing = ""
+maybeOpts (Just o) = ':' : o
+
+isVolumePathStart :: String -> Bool
+isVolumePathStart ('/':_) = True
+isVolumePathStart ('~':_) = True
+isVolumePathStart ('$':_) = True
+isVolumePathStart _       = False
 
 -- path and env expansion
 
