@@ -185,7 +185,7 @@ enterCmd dryrun running mbase mprojectname = do
       if running
       then do
         enterCmd dryrun False mbase mprojectname
-      else error' "no encapsule container found"
+      else error' "encapsule container not found"
     [c] -> do
       unless running $
         warning "no running encapsule container found"
@@ -237,8 +237,8 @@ runCmd (RunOpts {..}) = do
   mprojectDir <- traverse resolveProject mproject
   containerName <-
     mkContainerName toolbox $ maybe (Project <$> mproject) (Just . Name) mname
+  debug $ containerName
   exists <- cmdBool "podman" ["container", "exists", containerName]
-  debug $ containerName +-+ "exists"
   when (keep && not unique && exists) $
     error' $ "container" +-+ containerName +-+ "already exists"
   container <-
@@ -264,6 +264,7 @@ runCmd (RunOpts {..}) = do
             cmd_ "podman" ["start", container]
             return True
         else return False
+  debug $ "running:" +-+ show running
   homedir <- getHomeDirectory >>= canonicalizePath
   debug $ "HOME:" +-+ homedir
   if running
@@ -298,6 +299,7 @@ runCmd (RunOpts {..}) = do
       let isImage = ':' `elem` toolbox
       debug $ if isImage
               then "image:" +-+ toolbox
+                   -- FIXME handling of unique is kind of broken: not container
               else "toolbox:" +-+ toolbox
       image <-
         if isImage
