@@ -13,7 +13,7 @@ import qualified Data.Text.Lazy as TL
 import Safe (headMay, lastMay, readMay)
 import System.Directory (canonicalizePath, createDirectoryIfMissing,
                          doesDirectoryExist, doesFileExist, doesPathExist,
-                         getHomeDirectory, getModificationTime)
+                         getHomeDirectory)
 import System.Environment.XDG.BaseDir (getUserConfigFile)
 import System.Exit (exitWith, exitFailure)
 import System.FilePath ((</>), makeRelative, takeDirectory, takeFileName)
@@ -23,8 +23,8 @@ import System.Posix.Env (getEnvDefault)
 import System.Posix.Files (fileOwner, getFileStatus, isSocket)
 import System.Posix.User (getEffectiveUserID, getEffectiveUserName)
 import System.Process (rawSystem)
-import Data.Time.Clock (UTCTime, getCurrentTime)
-import Data.Time.Format (defaultTimeLocale, formatTime, parseTimeM)
+import Data.Time.Clock (getCurrentTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import SimpleCmd (cmd, cmd_, cmdBool, cmdFull, cmdLines, warning, (+-+))
 import SimpleCmdArgs
 import SimplePrompt (yesNo)
@@ -77,10 +77,9 @@ main = do
       <*> pure True
       <*> optional toolboxArg
       <*> optional projectNameOpt
-    , Subcommand "refresh" "Update an encapsule image from a (toolbox) container" $
+    , Subcommand "refresh" "Re-commit an encapsule image from a (toolbox) container" $
       refreshCmd
       <$> dryrunOpt
-      <*> switchLongWith "force" "Re-commit even if the image looks up to date"
       <*> toolboxArg
     , Subcommand "run" "Run a temporary encapsule container" $
       runCmd <$> runOpts False True True
@@ -458,8 +457,8 @@ runCmd (RunOpts {..}) = do
 
 -- image management
 
-refreshCmd :: Bool -> Bool -> String -> IO ()
-refreshCmd dryrun force toolbox = do
+refreshCmd :: Bool -> String -> IO ()
+refreshCmd dryrun toolbox = do
   containerExists <- cmdBool "podman" ["container", "exists", toolbox]
   unless containerExists $
     error' $ "container '" ++ toolbox ++ "' not found"
@@ -467,19 +466,7 @@ refreshCmd dryrun force toolbox = do
   imageExists <- cmdBool "podman" ["image", "exists", image]
   unless imageExists $
     error' $ "image" +-+ image +-+ "not found (create or run first)"
-  needsCommit <-
-    if force
-    then return True
-    else do
-      imageTime <- inspectUTCTime image "{{.Created}}"
-      toolboxTime <- toolboxFreshness toolbox
-      case (imageTime, toolboxTime) of
-        (Just img, Just tb) -> return (img < tb)
-        -- if we cannot compare, recommit to be safe
-        _ -> return True
-  if needsCommit
-    then void $ commitToolbox dryrun toolbox True
-    else putStrLn $ image +-+ "is up to date"
+  void $ commitToolbox dryrun toolbox True
 
 -- Prompt when backing up more than this many bytes.
 largeBackupBytes :: Integer
@@ -537,47 +524,6 @@ humanSize n
     k = 1024
     m = k * 1024
     g = m * 1024
-
--- Prefer overlay UpperDir mtime (system changes, not bind mounts);
--- fall back to StartedAt, then Created.
-toolboxFreshness :: String -> IO (Maybe UTCTime)
-toolboxFreshness toolbox = do
-  upper <- inspectFormat toolbox "{{.GraphDriver.Data.UpperDir}}"
-  mUpper <-
-    if null upper || upper == "<no value>"
-    then return Nothing
-    else do
-      exists <- doesDirectoryExist upper
-      if exists
-        then Just <$> getModificationTime upper
-        else return Nothing
-  case mUpper of
-    Just t -> return (Just t)
-    Nothing -> do
-      started <- inspectFormat toolbox "{{.State.StartedAt}}"
-      -- podman uses year 0001 when the container has never started
-      if null started || "0001-01-01" `isPrefixOf` started
-        then inspectUTCTime toolbox "{{.Created}}"
-        else return (parsePodmanTime started)
-
-inspectUTCTime :: String -> String -> IO (Maybe UTCTime)
-inspectUTCTime name format =
-  parsePodmanTime <$> inspectFormat name format
-
--- podman -f '{{.Created}}' prints Go's time.String
--- (e.g. "2026-06-29 16:18:14.981069671 +0800 +08"), not ISO8601.
-parsePodmanTime :: String -> Maybe UTCTime
-parsePodmanTime raw =
-  case words raw of
-    (day : clock : off : _) ->
-      parseTimeM True defaultTimeLocale "%Y-%m-%d %H:%M:%S%Q %z"
-      (unwords [day, clock, off])
-    _ -> Nothing
-
-inspectFormat :: String -> String -> IO String
-inspectFormat name format = do
-  (_, out, _) <- cmdFull "podman" ["inspect", "-f", format, name] ""
-  return $ filter (/= '\n') out
 
 commitToolbox :: Bool -> String -> Bool -> IO String
 commitToolbox dryrun toolbox refresh = do
