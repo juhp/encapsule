@@ -26,7 +26,7 @@ Encapsule images and containers are prefixed by `encapsule-`.
 `$ encapsule --version`
 
 ```
-0.4
+0.4.1
 ```
 
 `$ encapsule --help`
@@ -49,9 +49,11 @@ Available commands:
   rm                       Remove an encapsule container
   rmi                      Remove an encapsule image
   stop                     Stop an encapsule container
+  backup                   Create a tarball backup of a directory
   create                   Create an encapsule container
   enter                    Connect to a encapsule container
-  refresh                  Re-commit an encapsule image from a (toolbox) container
+  refresh                  Re-commit an encapsule image from a (toolbox)
+                           container
   run                      Run a temporary encapsule container
 ```
 
@@ -67,31 +69,37 @@ from a (toolbox) image or container.
 
 ```
 Usage: encapsule run TOOLBOX [-v|--volume HOST:CONTAINER[:opts]]
-                     [-e|--env KEY[=VALUE]] [-P|--path DIR] [-i|--init CMD]
-                     [--cap NAME] [--pull] [--home DIR] [-p|--project DIR]
+                     [-e|--env KEY[=VALUE]] [--path DIR] [-i|--init CMD]
+                     [--cap NAME] [--pull]
+                     [(-H|--home DIR[:opts]) [--backup-home]]
+                     [(-p|--project DIR[:opts]) [--backup-project]]
                      [-n|--name NAME] [--readonly] [--no-network] [--no-sudo]
-                     [--podman-opt OPTION] [--debug] [--dryrun] [--refresh]
-                     [CMD]
+                     [--no-skel] [--podman-opt OPTION] [--debug] [--dryrun]
+                     [--refresh] [CMD]
 
   Run a temporary encapsule container
 
 Available options:
   -v,--volume HOST:CONTAINER[:opts]
-                           Bind mounts (default to selinux :z)
+                           Bind mount (user's files default to selinux :z)
   -e,--env KEY[=VALUE]     Set or pass through an environment variable
-  -P,--path DIR            Prepend a directory to PATH inside the container
+  --path DIR               Prepend a directory to PATH inside the container
   -i,--init CMD            A bash snippet run when creating the encapsule
                            container
   --cap NAME               Enable a capability from the config file
   --pull                   Pull newer container image
-  --home DIR               Mount a directory as a writable home (created if
-                           missing)
-  -p,--project DIR         Mount a (project) directory as workdir
+  -H,--home DIR[:opts]     Mount a directory as a writable home (created if
+                           missing; use DIR:O to overlay)
+  --backup-home            Tarball home directory before starting
+  -p,--project DIR[:opts]  Mount a (project) directory as workdir (use DIR:O to
+                           overlay)
+  --backup-project         Tarball project directory before starting
   -n,--name NAME           Optional container name (prefix with '^' prefix to
                            skip 'encapsule-' prefix)
   --readonly               Make the encapsule container filesystem read-only
   --no-network             Disable network access
   --no-sudo                Skip passwordless sudo setup
+  --no-skel                Don't copy /etc/skel into an empty home
   --podman-opt OPTION      Pass an option directly to podman
   --debug                  Show debug output
   --dryrun                 Print the podman command instead of running it
@@ -131,7 +139,7 @@ $ encapsule run my-toolbox --readonly
 $ encapsule rm my-toolbox
 
 # Set environment variables and prepend to PATH
-$ encapsule run my-toolbox -e MY_VAR=hello --path ~/.local/bin
+$ encapsule run my-toolbox -e MY_VAR=hello -e LANG --path ~/.local/bin
 
 # Run a specific command
 $ encapsule run my-toolbox -- ls /

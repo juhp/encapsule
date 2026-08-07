@@ -105,7 +105,7 @@ main = do
     runOpts keep unique refresh' =
       RunOpts
       <$> toolboxArg
-      <*> many (strOptionWith 'v' "volume" "HOST:CONTAINER[:opts]" "Bind mounts (default to selinux :z)")
+      <*> many (strOptionWith 'v' "volume" "HOST:CONTAINER[:opts]" "Bind mount (user's files default to selinux :z)")
       <*> many (strOptionWith 'e' "env" "KEY[=VALUE]" "Set or pass through an environment variable")
       <*> many (strOptionLongWith "path" "DIR" "Prepend a directory to PATH inside the container")
       <*> many (strOptionWith 'i' "init" "CMD" "A bash snippet run when creating the encapsule container")

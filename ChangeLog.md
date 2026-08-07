@@ -1,5 +1,18 @@
 # encapsule releases
 
+## 0.4.1 (2026-08-07)
+- require volume host paths to exist
+- drop `-P` for `--path` and add `-H` for `--home`
+- copy `/etc/skel` into home if `~/.bashrc` is missing (`--no-skel` to skip)
+- config.toml: add dbus, dconf, machine-id capabilities
+- support mount options for `--home` and `--project` (like `:O` for overlay)
+- only auto SELinux `:z` for user-owned paths and not overlay `:O`
+- create `--project`/`--volume` mount points in --home for $HOME targets
+- add `backup` command to tarball a directory (prompts if >100MB)
+- `run`,`create`: `--backup-home` / `--backup-project` to tarball those dirs
+- `refresh`: always update image (drop freshness checks and `--force`)
+- sanitize `.` to `-` in container hostname
+
 ## 0.4 (2026-08-04)
 - convert to using subcommands
 - `list`: separate images and containers and include image tags
