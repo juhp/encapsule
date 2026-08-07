@@ -177,11 +177,11 @@ path = ["~/.cargo/bin"]
 
 Each capability can define:
 
-- `volumes` — list of bind mount specs
-- `env` — list of environment variables to set or pass through
-- `path` — list of directories to prepend to `$PATH`
-- `init` — a bash snippet to run on encapsule container creation
-- `security_opts` — list of `--security-opt` values passed to podman
+- `volumes` : list of bind mount specs
+- `env` : list of environment variables to set or pass through
+- `path` : list of directories to prepend to `$PATH`
+- `init` : a bash snippet to run on encapsule container creation
+- `security_opts` : list of `--security-opt` values passed to podman
 
 `~` and envvars are expanded in volume and path specs.
 If the host and container paths are the same, you can use the shorthand
@@ -215,13 +215,16 @@ Install `cabal-install` and `ghc`.
 cabal install
 ```
 
-(or to build the latest release: `cabal install encapsule`)
 
 ### Build with stack
 Alternatively you can build with:
 ```
 stack install
 ```
+
+### Build release
+To build the latest release: `cabal install encapsule`
+or `stack install encapsule`.
 
 ## Runtime Requirements
 
