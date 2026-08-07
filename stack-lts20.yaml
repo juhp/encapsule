@@ -1,0 +1,4 @@
+snapshot: lts-20.26
+extra-deps:
+- shell-monad-0.6.10
+- simple-prompt-0.2.0.1
