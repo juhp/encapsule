@@ -13,7 +13,7 @@ import qualified Data.Text.Lazy as TL
 import Data.Time.Clock (getCurrentTime)
 import Data.Time.Format (defaultTimeLocale, formatTime)
 import Safe (headMay, lastMay, readMay)
-import SimpleCmd (cmd, cmd_, cmdBool, cmdFull, cmdLines, warning, (+-+))
+import SimpleCmd (cmd, cmd_, cmdBool, cmdFull, cmdLines, cmdN, warning, (+-+))
 import SimpleCmdArgs
 import SimplePrompt (yesNo)
 import System.Directory (canonicalizePath, createDirectoryIfMissing,
@@ -448,7 +448,7 @@ runCmd (RunOpts {..}) = do
                 ++ [image, "sh", "-c", setup]
 
       if dryrun
-        then putStrLn $ unwords $ "podman" : map shellQuote args
+        then cmdN "podman" $ map shellQuote args
         else do
           ret <- rawSystem "podman" args
           exitWith ret
@@ -535,12 +535,15 @@ commitToolbox dryrun toolbox refresh = do
       containerExists <- cmdBool "podman" ["container", "exists", toolbox]
       if containerExists
         then do
+        let buildah_args = ["commit", "--disable-compression", toolbox, image]
         ok <-
-          if dryrun then return True
+          if dryrun
+          then do
+            cmdN "buildah" buildah_args
+            return True
           else do
             putStr "writing image "
-            cmdBool "buildah"
-              ["commit", "--disable-compression", toolbox, image]
+            cmdBool "buildah" buildah_args
         if ok
           then return image
           else error' $ "could not commit image of container" +-+ toolbox
