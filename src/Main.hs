@@ -16,7 +16,7 @@ import System.Directory (canonicalizePath, createDirectoryIfMissing,
                          getHomeDirectory, getModificationTime)
 import System.Environment.XDG.BaseDir (getUserConfigFile)
 import System.Exit (exitWith, exitFailure)
-import System.FilePath ((</>), takeDirectory, takeFileName)
+import System.FilePath ((</>), makeRelative, takeDirectory, takeFileName)
 import System.IO (BufferMode(NoBuffering), hSetBuffering, stdout)
 import System.Posix.Process (getProcessID)
 import System.Posix.Env (getEnvDefault)
@@ -333,6 +333,14 @@ runCmd (RunOpts {..}) = do
         case mtemphome of
           Just temphome -> do
             createDirectoryIfMissing True temphome
+            -- If --project lives under $HOME, its container path is inside the
+            -- temp home mount; create the mount point as the user so podman
+            -- does not leave a root-owned directory behind.
+            case mprojectDir of
+              Just p | isUnderDir homedir p ->
+                createDirectoryIfMissing True
+                  (temphome </> makeRelative homedir p)
+              _ -> return ()
             return [temphome ++ ":" ++ homedir ++ maybeOpts homeMountOpts]
           Nothing -> return []
 
@@ -781,6 +789,11 @@ resolveProject dir = do
   when (finaldir == homedir) $
     warning "mounting $HOME as project (consider a subdirectory)"
   return finaldir
+
+-- True if path is base or a subdirectory of base (avoids /home/foo vs /home/foobar).
+isUnderDir :: FilePath -> FilePath -> Bool
+isUnderDir base path =
+  path == base || (base ++ "/") `isPrefixOf` path
 
 -- container naming
 
