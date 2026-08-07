@@ -4,7 +4,7 @@
 
 module Main (main) where
 
-import Control.Monad (unless, void, when, (>=>))
+import Control.Monad.Extra (unless, void, when, whenJust, (>=>))
 import Data.List.Extra (intercalate, isPrefixOf, splitOn)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isNothing, mapMaybe)
@@ -97,6 +97,12 @@ main = do
 
     toolboxArg = argumentWith str "TOOLBOX"
 
+    backupDirOpt s l m h =
+      let pair fs sn = (fs,sn) in
+        pair
+        <$> strOptionWith s l m h
+        <*> switchLongWith ("backup-" ++ l) ("Tarball" +-+ l +-+ "directory before starting")
+
     runOpts keep unique refresh' =
       RunOpts
       <$> toolboxArg
@@ -106,8 +112,8 @@ main = do
       <*> many (strOptionWith 'i' "init" "CMD" "A bash snippet run when creating the encapsule container")
       <*> many (strOptionLongWith "cap" "NAME" "Enable a capability from the config file")
       <*> switchLongWith "pull" "Pull newer container image"
-      <*> optional (strOptionWith 'H' "home" "DIR[:opts]" "Mount a directory as a writable home (created if missing; e.g. DIR:O for overlay)")
-      <*> optional (projectOpt "Mount a (project) directory as workdir (e.g. DIR:O for overlay)")
+      <*> optional (backupDirOpt 'H' "home" "DIR[:opts]" "Mount a directory as a writable home (created if missing; use DIR:O to overlay)")
+      <*> optional (backupDirOpt 'p' "project" "DIR[:opts]" "Mount a (project) directory as workdir (use DIR:O to overlay)")
       <*> optional nameOpt
       <*> pure keep
       <*> switchLongWith "readonly" "Make the encapsule container filesystem read-only"
@@ -225,8 +231,8 @@ data RunOpts = RunOpts
   , inits :: [String]
   , caps :: [String]
   , pull :: Bool
-  , mhome :: Maybe FilePath
-  , mproject :: Maybe FilePath
+  , mhome :: Maybe (FilePath, Bool)
+  , mproject :: Maybe (FilePath, Bool)
   , mname :: Maybe String
   , keep :: Bool
   , readonly :: Bool
@@ -243,8 +249,8 @@ data RunOpts = RunOpts
 
 runCmd :: RunOpts -> IO ()
 runCmd (RunOpts {..}) = do
-  let (mhomeDir, homeMountOpts) = splitDirOptsMaybe mhome
-      (mprojectPath, projectMountOpts) = splitDirOptsMaybe mproject
+  let (mhomeDir, homeMountOpts, backupHome) = splitDirOptsMaybe mhome
+      (mprojectPath, projectMountOpts, backupProject) = splitDirOptsMaybe mproject
   mprojectDir <- traverse resolveProject mprojectPath
   containerName <-
     mkContainerName toolbox $
@@ -301,8 +307,13 @@ runCmd (RunOpts {..}) = do
         error' "cannot give options for an existing container!"
       warning "Entering existing container"
       enterContainer dryrun True container command
-    else createContainer homedir mhomeDir homeMountOpts mprojectDir
-                          projectMountOpts container
+    else do
+      when backupHome $
+        whenJust mhomeDir $ backupCmd dryrun False Nothing
+      when backupProject $
+        whenJust mprojectDir $ backupCmd dryrun False Nothing
+      createContainer homedir mhomeDir homeMountOpts mprojectDir
+                        projectMountOpts container
   where
     createContainer homedir mhomeDir homeMountOpts mprojectDir
                     projectMountOpts container = do
@@ -728,11 +739,12 @@ splitDirOpts spec =
       | isVolumePathStart rest -> (spec, Nothing)
       | otherwise -> (dir, Just rest)
 
-splitDirOptsMaybe :: Maybe String -> (Maybe FilePath, Maybe String)
-splitDirOptsMaybe Nothing = (Nothing, Nothing)
-splitDirOptsMaybe (Just s) =
+splitDirOptsMaybe :: Maybe (String,Bool)
+                  -> (Maybe FilePath, Maybe String, Bool)
+splitDirOptsMaybe Nothing = (Nothing, Nothing, False)
+splitDirOptsMaybe (Just (s,backup)) =
   let (dir, opts) = splitDirOpts s
-  in (Just dir, opts)
+  in (Just dir, opts, backup)
 
 maybeOpts :: Maybe String -> String
 maybeOpts Nothing = ""
