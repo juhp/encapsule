@@ -333,14 +333,12 @@ runCmd (RunOpts {..}) = do
         case mtemphome of
           Just temphome -> do
             createDirectoryIfMissing True temphome
-            -- If --project lives under $HOME, its container path is inside the
-            -- temp home mount; create the mount point as the user so podman
-            -- does not leave a root-owned directory behind.
+            -- Mount targets under $HOME land inside the temp home volume;
+            -- create them as the user so podman does not leave root-owned paths.
             case mprojectDir of
-              Just p | isUnderDir homedir p ->
-                createDirectoryIfMissing True
-                  (temphome </> makeRelative homedir p)
-              _ -> return ()
+              Just p -> ensureTempHomeMountPoint homedir temphome p p
+              Nothing -> return ()
+            mapM_ (ensureTempHomeVol homedir temphome) (vols ++ extraVols)
             return [temphome ++ ":" ++ homedir ++ maybeOpts homeMountOpts]
           Nothing -> return []
 
@@ -794,6 +792,42 @@ resolveProject dir = do
 isUnderDir :: FilePath -> FilePath -> Bool
 isUnderDir base path =
   path == base || (base ++ "/") `isPrefixOf` path
+
+-- Pre-create a bind mount point under temp home when the container path is
+-- inside $HOME (directories, or empty files for file/socket mounts).
+ensureTempHomeMountPoint :: FilePath -> FilePath -> FilePath -> FilePath -> IO ()
+ensureTempHomeMountPoint homedir temphome hostPath containerPath =
+  when (isUnderDir homedir containerPath) $ do
+    let dest = temphome </> makeRelative homedir containerPath
+    hostIsFile <- doesFileExist hostPath
+    hostIsSock <- isSocketFile hostPath
+    if hostIsFile || hostIsSock
+      then do
+        createDirectoryIfMissing True (takeDirectory dest)
+        destExists <- doesPathExist dest
+        unless destExists $ writeFile dest ""
+      else createDirectoryIfMissing True dest
+
+ensureTempHomeVol :: FilePath -> FilePath -> String -> IO ()
+ensureTempHomeVol homedir temphome spec = do
+  (hostPath, containerPath) <- volumePaths homedir spec
+  ensureTempHomeMountPoint homedir temphome hostPath containerPath
+
+-- Resolve host and container paths from a volume spec (before SELinux opts).
+volumePaths :: FilePath -> String -> IO (FilePath, FilePath)
+volumePaths homedir spec =
+  case break (== ':') spec of
+    (hostPart, []) -> do
+      p <- expandPath homedir hostPart
+      return (p, p)
+    (hostPart, _:rest') -> do
+      hostExp <- expandPath homedir hostPart
+      if isVolumePathStart rest'
+        then do
+          let containerPart = takeWhile (/= ':') rest'
+          containerExp <- expandPath homedir containerPart
+          return (hostExp, containerExp)
+        else return (hostExp, hostExp)
 
 -- container naming
 
