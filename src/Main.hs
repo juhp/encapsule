@@ -10,7 +10,12 @@ import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isNothing, mapMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
+import Data.Time.Clock (getCurrentTime)
+import Data.Time.Format (defaultTimeLocale, formatTime)
 import Safe (headMay, lastMay, readMay)
+import SimpleCmd (cmd, cmd_, cmdBool, cmdFull, cmdLines, warning, (+-+))
+import SimpleCmdArgs
+import SimplePrompt (yesNo)
 import System.Directory (canonicalizePath, createDirectoryIfMissing,
                          doesDirectoryExist, doesFileExist, doesPathExist,
                          getHomeDirectory)
@@ -23,11 +28,6 @@ import System.Posix.Env (getEnvDefault)
 import System.Posix.Files (fileOwner, getFileStatus, isSocket)
 import System.Posix.User (getEffectiveUserID, getEffectiveUserName)
 import System.Process (rawSystem)
-import Data.Time.Clock (getCurrentTime)
-import Data.Time.Format (defaultTimeLocale, formatTime)
-import SimpleCmd (cmd, cmd_, cmdBool, cmdFull, cmdLines, warning, (+-+))
-import SimpleCmdArgs
-import SimplePrompt (yesNo)
 import TOML (Value(..), Table, renderTOMLError, decodeFile)
 
 import Paths_encapsule (version)
