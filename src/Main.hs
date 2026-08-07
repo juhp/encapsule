@@ -254,7 +254,7 @@ runCmd (RunOpts {..}) = do
   containerName <-
     mkContainerName toolbox $
       maybe (Project <$> mprojectPath) (Just . Name) mname
-  debug $ containerName
+  debug containerName
   exists <- cmdBool "podman" ["container", "exists", containerName]
   when (keep && not unique && exists) $
     error' $ "container" +-+ containerName +-+ "already exists"
