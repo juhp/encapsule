@@ -4,7 +4,7 @@
 
 module Main (main) where
 
-import Control.Monad.Extra (unless, void, when, whenJust, (>=>))
+import Control.Monad.Extra (unless, when, whenJust, (>=>))
 import Data.List.Extra (intercalate, isPrefixOf, splitOn)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (fromMaybe, isNothing, mapMaybe)
@@ -69,6 +69,10 @@ main = do
       <*> switchWith 'y' "yes" "Don't prompt for large directories"
       <*> optional (strOptionWith 'o' "output" "FILE" "Output tarball (default: DIR-<timestamp>.tar.gz)")
       <*> argumentWith str "DIR"
+    , Subcommand "commit" "Commit an encapsule image from a container" $
+      commitCmd
+      <$> dryrunOpt
+      <*> toolboxArg
     , Subcommand "create" "Create an encapsule container" $
       runCmd <$> runOpts True False False
     , Subcommand "enter" "Connect to a encapsule container" $
@@ -77,10 +81,6 @@ main = do
       <*> pure True
       <*> optional toolboxArg
       <*> optional projectNameOpt
-    , Subcommand "refresh" "Re-commit an encapsule image from a (toolbox) container" $
-      refreshCmd
-      <$> dryrunOpt
-      <*> toolboxArg
     , Subcommand "run" "Run a temporary encapsule container" $
       runCmd <$> runOpts False True True
     ]
@@ -457,16 +457,21 @@ runCmd (RunOpts {..}) = do
 
 -- image management
 
-refreshCmd :: Bool -> String -> IO ()
-refreshCmd dryrun toolbox = do
+commitCmd :: Bool -> String -> IO ()
+commitCmd dryrun toolbox = do
   containerExists <- cmdBool "podman" ["container", "exists", toolbox]
   unless containerExists $
     error' $ "container '" ++ toolbox ++ "' not found"
   let image = progname +=+ toolbox
   imageExists <- cmdBool "podman" ["image", "exists", image]
   unless imageExists $
-    error' $ "image" +-+ image +-+ "not found (create or run first)"
-  void $ commitToolbox dryrun toolbox True
+    putStrLn $ "creating new image:" +-+ image
+  let buildah_args = ["commit", "--disable-compression", toolbox, image]
+  if dryrun
+    then cmdN "buildah" buildah_args
+    else do
+      putStr "writing image "
+      cmd_ "buildah" buildah_args
 
 -- Prompt when backing up more than this many bytes.
 largeBackupBytes :: Integer
@@ -524,30 +529,6 @@ humanSize n
     k = 1024
     m = k * 1024
     g = m * 1024
-
-commitToolbox :: Bool -> String -> Bool -> IO String
-commitToolbox dryrun toolbox refresh = do
-  let image = progname +=+ toolbox
-  imageExists <- cmdBool "podman" ["image", "exists", image]
-  if imageExists && not refresh
-    then return image
-    else do
-      containerExists <- cmdBool "podman" ["container", "exists", toolbox]
-      if containerExists
-        then do
-        let buildah_args = ["commit", "--disable-compression", toolbox, image]
-        ok <-
-          if dryrun
-          then do
-            cmdN "buildah" buildah_args
-            return True
-          else do
-            putStr "writing image "
-            cmdBool "buildah" buildah_args
-        if ok
-          then return image
-          else error' $ "could not commit image of container" +-+ toolbox
-        else error' $ "container '" ++ toolbox ++ "' not found"
 
 removeImage :: String -> IO ()
 removeImage image = do
