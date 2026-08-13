@@ -74,7 +74,7 @@ main = do
       <$> dryrunOpt
       <*> toolboxArg
     , Subcommand "create" "Create an encapsule container" $
-      runCmd <$> runOpts True False False
+      runCmd <$> runOpts True False
     , Subcommand "enter" "Connect to a encapsule container" $
       enterCmd
       <$> dryrunOpt
@@ -82,7 +82,7 @@ main = do
       <*> optional toolboxArg
       <*> optional projectNameOpt
     , Subcommand "run" "Run a temporary encapsule container" $
-      runCmd <$> runOpts False True True
+      runCmd <$> runOpts False True
     ]
   where
     dryrunOpt = switchLongWith "dryrun" "Print the podman command instead of running it"
@@ -102,9 +102,9 @@ main = do
         <$> strOptionWith s l m h
         <*> switchLongWith ("backup-" ++ l) ("Tarball" +-+ l +-+ "directory before starting")
 
-    runOpts keep unique refresh' =
+    runOpts keep unique =
       RunOpts
-      <$> toolboxArg
+      <$> strArg "IMAGE"
       <*> many (strOptionWith 'v' "volume" "HOST:CONTAINER[:opts]" "Bind mount (user's files default to selinux :z)")
       <*> many (strOptionWith 'e' "env" "KEY[=VALUE]" "Set or pass through an environment variable")
       <*> many (strOptionLongWith "path" "DIR" "Prepend a directory to PATH inside the container")
@@ -123,10 +123,7 @@ main = do
       <*> many (strOptionLongWith "podman-opt" "OPTION" "Pass an option directly to podman")
       <*> switchLongWith "debug" "Show debug output"
       <*> dryrunOpt
-      <*> (if refresh'
-           then switchLongWith "refresh" "Force re-commit of the toolbox image"
-           else pure False)
-      <*> many (argumentWith str "CMD")
+      <*> many (strArg "CMD")
 
 
 listCmd :: IO ()
@@ -242,7 +239,6 @@ data RunOpts = RunOpts
   , podmanopts :: [String]
   , debugging :: Bool
   , dryrun :: Bool
-  , refresh :: Bool
   , command :: [String]
   }
 
@@ -300,7 +296,6 @@ runCmd (RunOpts {..}) = do
             , not nosudo
             , not noskel
             , null podmanopts
-            , not refresh
             ]
       unless noopts $
         error' "cannot give options for an existing container!"
@@ -311,28 +306,28 @@ runCmd (RunOpts {..}) = do
         whenJust mhomeDir $ backupCmd dryrun False Nothing
       when backupProject $
         whenJust mprojectDir $ backupCmd dryrun False Nothing
-      createContainer homedir mhomeDir homeMountOpts mprojectDir
-                        projectMountOpts container
-  where
-    createContainer homedir mhomeDir homeMountOpts mprojectDir
-                    projectMountOpts container = do
+      -- * createContainer
       mtemphome <- traverse (expandPath homedir >=> canonicalizePath) mhomeDir
       case (mtemphome, mprojectDir) of
         (Just h, Just p) | h == p ->
           error' "--home and --project must be different directories"
         _ -> return ()
-      let isImage = ':' `elem` toolbox
-      debug $ if isImage
-              then "image:" +-+ toolbox
-                   -- FIXME handling of unique is kind of broken: not container
-              else "toolbox:" +-+ toolbox
-      image <-
-        if isImage
-        then do
-          when pull $
-            cmd_ "podman" ["pull", toolbox]
-          return toolbox
-        else commitToolbox dryrun toolbox refresh
+      when pull $
+        cmd_ "podman" ["pull", toolbox]
+      image <- do
+        let eimg = progname +=+ toolbox
+        exists' <- cmdBool "podman" ["image", "exists", eimg]
+        if exists'
+          then return eimg
+          else do
+          warning $ eimg +-+ "image not found"
+          exists'' <- cmdBool "podman" ["image", "exists", toolbox]
+          if exists''
+            then return toolbox
+            else error' $
+                 show toolbox +-+ "image not found\n" ++
+                 "Create an image from a container with 'commit' or pull an image"
+      debug $ "image:" +-+ image
       config <- loadConfig
       let capabilities = getCapabilities config
 
@@ -357,8 +352,8 @@ runCmd (RunOpts {..}) = do
       projectVol <-
         case mprojectDir of
           Just d -> do
-            exists <- doesDirectoryExist d
-            if exists
+            exists' <- doesDirectoryExist d
+            if exists'
               then return [d ++ ':' : d ++ maybeOpts projectMountOpts]
               else error' $ "project dir not found:" +-+ d
           Nothing -> return []
@@ -381,7 +376,7 @@ runCmd (RunOpts {..}) = do
 
           sudoers = "/etc/sudoers.d" </> progname
           installSetup =
-            [TL.unpack $ installScript debugging (not nosudo) | isImage]
+            [TL.unpack $ installScript debugging (not nosudo)]
           sudoSetup =
             if nosudo
             then ["rm -f /usr/bin/sudo"]
@@ -402,10 +397,7 @@ runCmd (RunOpts {..}) = do
           -- podman --workdir requires the path to exist at start; for no
           -- --workdir/--project, mkdir home first then cd (see workdirPart)
           cdHome = ["cd" +-+ shellQuote homedir | isNothing mprojectDir]
-          fallback =
-            if isImage
-            then " || exec" +-+ runuserCmd
-            else ""
+          fallback = " || exec" +-+ runuserCmd
           trace = ["set -x" | debugging]
           setup = intercalate " && "
                   (trace ++ installSetup ++ sudoSetup ++ homeSetup ++ skelSetup ++
@@ -452,7 +444,7 @@ runCmd (RunOpts {..}) = do
         else do
           ret <- rawSystem "podman" args
           exitWith ret
-
+  where
     debug msg = when debugging $ warning $ "debug:" +-+ msg
 
 -- image management
