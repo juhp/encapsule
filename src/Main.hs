@@ -53,33 +53,33 @@ main = do
       pure listCapsCmd
     , Subcommand "rm" "Remove an encapsule container" $
       removeCmd
-      <$> toolboxArg
+      <$> strArg "TOOLBOX"
       <*> optional projectNameOpt
     , Subcommand "rmi" "Remove an encapsule image" $
       removeImageCmd
       <$> dryrunOpt
-      <*> toolboxArg
+      <*> strArg "TOOLBOX"
     , Subcommand "stop" "Stop an encapsule container" $
       stopCmd
-      <$> toolboxArg
+      <$> strArg "TOOLBOX"
       <*> optional projectNameOpt
     , Subcommand "backup" "Create a tarball backup of a directory" $
       backupCmd
       <$> dryrunOpt
       <*> switchWith 'y' "yes" "Don't prompt for large directories"
       <*> optional (strOptionWith 'o' "output" "FILE" "Output tarball (default: DIR-<timestamp>.tar.gz)")
-      <*> argumentWith str "DIR"
+      <*> strArg "DIR"
     , Subcommand "commit" "Commit an encapsule image from a container" $
       commitCmd
       <$> dryrunOpt
-      <*> toolboxArg
+      <*> strArg "TOOLBOX"
     , Subcommand "create" "Create an encapsule container" $
       runCmd <$> runOpts True False
     , Subcommand "enter" "Connect to a encapsule container" $
       enterCmd
       <$> dryrunOpt
       <*> pure True
-      <*> optional toolboxArg
+      <*> optional (strArg "TOOLBOX")
       <*> optional projectNameOpt
     , Subcommand "run" "Run a temporary encapsule container" $
       runCmd <$> runOpts False True
@@ -93,8 +93,6 @@ main = do
 
     projectNameOpt = Project <$> projectOpt "Project name or path" <|>
                      Name <$> nameOpt
-
-    toolboxArg = argumentWith str "TOOLBOX"
 
     backupDirOpt s l m h =
       let pair fs sn = (fs,sn) in
