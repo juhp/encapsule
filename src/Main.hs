@@ -408,6 +408,8 @@ runCmd (RunOpts {..}) = do
         warning "SELinux labeling disabled for this container (label=disable)"
       unless dryrun $ debug $ "setup:" +-+ setup
       mounts <- mapM (addSelinuxLabel homedir) volumes
+      tzMounts <- hostTimezoneMount
+      debug $ "timezone:" +-+ show tzMounts
 
       let workdirPart =
             case mprojectDir of
@@ -432,7 +434,7 @@ runCmd (RunOpts {..}) = do
                     else [])
                 ++ (if nonetwork then ["--net", "none"] else [])
                 ++ concatMap (\s -> ["--security-opt", s]) securityOpts
-                ++ concatMap (\m -> ["-v", m]) mounts
+                ++ concatMap (\m -> ["-v", m]) (tzMounts ++ mounts)
                 ++ concatMap (\e -> ["-e", e]) envVars
                 ++ podmanopts
                 ++ [image, "sh", "-c", setup]
@@ -592,6 +594,15 @@ valueToString :: Value -> Maybe String
 valueToString (String t) = Just (T.unpack t)
 valueToString _ = Nothing
 
+-- later possibly also support /etc/timezone
+hostTimezoneMount :: IO [String]
+hostTimezoneMount = do
+  let localtime = "/etc/localtime"
+  found <- doesFileExist localtime
+  return $
+    if found
+    then [localtime ++ ':' : localtime ++ ":ro"]
+    else []
 -- SELinux labeling
 
 -- FIXME rather return Mount type or triple?
