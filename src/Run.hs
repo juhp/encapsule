@@ -209,13 +209,15 @@ runCmd (RunOpts {..}) = do
           -- podman --workdir requires the path to exist at start; for no
           -- --workdir/--project, mkdir home first then cd (see workdirPart)
           setupParts =
-            setupScript debugging haveRunuser setupArgs :
-            [mkInitSetup allinits | not (null allinits)]
+            let setup = setupScript debugging haveRunuser setupArgs
+            in [setup | not (null setup)] ++
+               [mkInitSetup allinits | not (null allinits)]
           finalCmd =
             if haveRunuser
             then "exec runuser -u" +-+ username +-+ "--" +-+ runuserCmd
             else "exec" +-+ runuserCmd
           execScript =
+            (if debugging then ("set -x &&" +-+) else id) $
             if null setupParts
             then finalCmd
             else intercalate " && " $ setupParts ++ [finalCmd]

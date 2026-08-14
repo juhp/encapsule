@@ -33,16 +33,12 @@ data Setup = Setup
 setupScript :: Bool -> Bool -> Setup -> String
 setupScript dbg haveRunuser (Setup {..}) =
   T.unpack . T.replace "\t" " " . linearScript $
-  trace >> sudoSetup >> homeSetup
+  sudoSetup >> homeSetup
   where
     redir s dest =
         if dbg then s else s |> (dest :: String) &stdError>&stdOutput
     runHide c args = run c args `redir` "/dev/null"
     -- haveCmd c = runHide "command" ["-v",c]
-
-    trace =
-      when dbg $
-      runHide "set" ["-x"]
 
     sudoSetup =
       if nosudo
