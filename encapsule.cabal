@@ -37,7 +37,11 @@ source-repository head
 executable encapsule
   main-is:             Main.hs
   other-modules:       Paths_encapsule
+                       Backup
+                       Error
+                       Expand
                        Script
+                       ShellQuote
   autogen-modules:     Paths_encapsule
   hs-source-dirs:      src
   build-depends:       base < 5

@@ -5,33 +5,33 @@
 module Main (main) where
 
 import Control.Monad.Extra (unless, when, whenJust, (>=>))
-import Data.List.Extra (intercalate, isPrefixOf, splitOn)
+import Data.List.Extra (dropPrefix, intercalate, isPrefixOf, splitOn)
 import qualified Data.Map.Strict as Map
-import Data.Maybe (fromMaybe, isNothing, mapMaybe)
+import Data.Maybe (fromMaybe, isJust, isNothing, mapMaybe)
 import qualified Data.Text as T
 import qualified Data.Text.Lazy as TL
-import Data.Time.Clock (getCurrentTime)
-import Data.Time.Format (defaultTimeLocale, formatTime)
-import Safe (headMay, lastMay, readMay)
+import Safe (headMay, lastMay)
 import SimpleCmd (cmd, cmd_, cmdBool, cmdFull, cmdLines, cmdN, warning, (+-+))
 import SimpleCmdArgs
-import SimplePrompt (yesNo)
 import System.Directory (canonicalizePath, createDirectoryIfMissing,
                          doesDirectoryExist, doesFileExist, doesPathExist,
-                         getHomeDirectory)
+                         findFile, getHomeDirectory)
 import System.Environment.XDG.BaseDir (getUserConfigFile)
-import System.Exit (exitWith, exitFailure)
+import System.Exit (exitWith)
 import System.FilePath ((</>), makeRelative, takeDirectory, takeFileName)
 import System.IO (BufferMode(NoBuffering), hSetBuffering, stdout)
 import System.Posix.Process (getProcessID)
-import System.Posix.Env (getEnvDefault)
 import System.Posix.Files (fileOwner, getFileStatus, isSocket)
 import System.Posix.User (getEffectiveUserID, getEffectiveUserName)
 import System.Process (rawSystem)
 import TOML (Value(..), Table, renderTOMLError, decodeFile)
 
+import Backup
+import Error
+import Expand
 import Paths_encapsule (version)
 import Script
+import ShellQuote
 
 progname :: String
 progname = "encapsule"
@@ -332,6 +332,9 @@ runCmd (RunOpts {..}) = do
       (extraVols, extraEnvs, extraPaths, extraInits, extraSecurityOpts) <-
         resolveCapabilities capabilities caps
 
+      -- FIXME perhaps add --no-runuser?
+      haveRunuser <- checkImageHas image "runuser"
+
       homeVol <-
         case mtemphome of
           Just temphome -> do
@@ -372,37 +375,17 @@ runCmd (RunOpts {..}) = do
                 userCmdParts = mkUserCmd command allinits
             in "env" +-+ unwords (envParts ++ map shellQuote userCmdParts)
 
-          sudoers = "/etc/sudoers.d" </> progname
-          installSetup =
-            [TL.unpack $ installScript debugging (not nosudo)]
-          sudoSetup =
-            if nosudo
-            then ["rm -f /usr/bin/sudo"]
-            else ["echo" +-+ shellQuote (username +-+ "ALL=(ALL) NOPASSWD:ALL")
-                  +-+ ">" +-+ sudoers,
-                  "chmod 440" +-+ sudoers]
-          homeSetup =
-            if isNothing mhome
-            then ["mkdir -p" +-+ homedir,
-                  "chown" +-+ username +-+ homedir]
-            else []
-          skelSetup =
-            [ "if [ ! -e " ++ shellQuote (homedir </> ".bashrc") ++
-              " ] && [ -d /etc/skel ]; then " ++
-              "runuser -u" +-+ username +-+ "-- cp -an /etc/skel/." +-+
-              shellQuote (homedir ++ "/") ++ "; fi"
-            | not noskel ]
+          setupArgs =
+            Setup nosudo noskel (TL.pack username) progname (fst <$> mhome) (TL.pack homedir) mprojectDir
+
           -- podman --workdir requires the path to exist at start; for no
           -- --workdir/--project, mkdir home first then cd (see workdirPart)
-          cdHome = ["cd" +-+ shellQuote homedir | isNothing mprojectDir]
-          fallback = " || exec" +-+ runuserCmd
-          trace = ["set -x" | debugging]
           setup = intercalate " && "
-                  (trace ++ installSetup ++ sudoSetup ++ homeSetup ++ skelSetup ++
-                   cdHome ++
+                  ([setupScript debugging setupArgs] ++
                   [mkInitSetup allinits | not (null allinits)] ++
-                  ["exec runuser -u" +-+ username +-+ "--" +-+ runuserCmd])
-                  ++ fallback
+                  ["exec runuser -u" +-+ username +-+ "--" +-+ runuserCmd | haveRunuser])
+                  -- fallback
+                  +-+ " || exec" +-+ runuserCmd
 
       when ("label=disable" `elem` securityOpts) $
         warning "SELinux labeling disabled for this container (label=disable)"
@@ -464,63 +447,6 @@ commitCmd dryrun toolbox = do
     else do
       putStr "writing image "
       cmd_ "buildah" buildah_args
-
--- Prompt when backing up more than this many bytes.
-largeBackupBytes :: Integer
-largeBackupBytes = 100 * 1024 * 1024
-
-backupCmd :: Bool -> Bool -> Maybe FilePath -> FilePath -> IO ()
-backupCmd dryrun yes moutput dir = do
-  homedir <- getHomeDirectory >>= canonicalizePath
-  src <- expandPath homedir dir >>= canonicalizePath
-  exists <- doesDirectoryExist src
-  unless exists $
-    error' $ "directory not found:" +-+ src
-  size <- dirSizeBytes src
-  let sizeStr = humanSize size
-  putStrLn $ src +-+ "(" ++ sizeStr ++ ")"
-  when (not yes && size >= largeBackupBytes || size == 0) $ do
-    ok <- yesNo $ "Directory is" +-+ sizeStr ++ ", continue?"
-    unless ok $
-      error' "aborted"
-  out <-
-    case moutput of
-      Just o -> expandPath homedir o
-      Nothing -> do
-        now <- getCurrentTime
-        let stamp = formatTime defaultTimeLocale "%Y-%m-%d_%H:%M:%SZ" now
-        return $ src ++ "-" ++ stamp ++ ".tar.gz"
-  outExists <- doesFileExist out
-  when outExists $
-    if yes
-    then warning $ "overwriting" +-+ out
-    else error' $ "output already exists:" +-+ out +-+ "(use -y to overwrite)"
-  let parent = takeDirectory src
-      base = takeFileName src
-      args = ["czf", out, "-C", parent, base]
-  if dryrun
-    then putStrLn $ unwords $ "tar" : map shellQuote args
-    else do
-      putStrLn $ "Writing" +-+ out
-      cmd_ "tar" args
-
-dirSizeBytes :: FilePath -> IO Integer
-dirSizeBytes path = do
-  out <- cmd "du" ["-sb", path]
-  case words out of
-    (n:_) | Just i <- readMay n -> return i
-    _ -> error' $ "could not determine size of" +-+ path
-
-humanSize :: Integer -> String
-humanSize n
-  | n >= g = show (n `div` g) ++ "G"
-  | n >= m = show (n `div` m) ++ "M"
-  | n >= k = show (n `div` k) ++ "K"
-  | otherwise = show n ++ "B"
-  where
-    k = 1024
-    m = k * 1024
-    g = m * 1024
 
 removeImage :: String -> IO ()
 removeImage image = do
@@ -689,40 +615,6 @@ isVolumePathStart _       = False
 
 -- path and env expansion
 
-expandPath :: FilePath -> String -> IO FilePath
-expandPath homedir ('~':'/':rest) = do
-  rest' <- expandEnvVars rest
-  canonicalizePath $ homedir </> rest'
-expandPath homedir "~" = return homedir
-expandPath _ s = expandEnvVars s
-
-expandEnvVars :: String -> IO String
-expandEnvVars [] = return []
-expandEnvVars ('$':'{':rest) =
-  case break (== '}') rest of
-    (var, '}':after) -> do
-      val <- getEnvDefault var ""
-      rest' <- expandEnvVars after
-      return (val ++ rest')
-    _ -> do
-      rest' <- expandEnvVars rest
-      return ("${" ++ rest')
-expandEnvVars ('$':rest) =
-  let (var, after) = span isVarChar rest
-  in if null var
-     then do
-       rest' <- expandEnvVars rest
-       return ('$' : rest')
-     else do
-       val <- getEnvDefault var ""
-       rest' <- expandEnvVars after
-       return (val ++ rest')
-  where
-    isVarChar c = c `elem` (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9'] ++ "_")
-expandEnvVars (c:rest) = do
-  rest' <- expandEnvVars rest
-  return (c : rest')
-
 resolveProject :: FilePath -> IO FilePath
 resolveProject dir = do
   homedir <- getHomeDirectory >>= canonicalizePath
@@ -826,23 +718,9 @@ mkUserCmd com [] = com
 
 -- utilities
 
-shellQuote :: String -> String
-shellQuote s
-  | all isSafe s = s
-  | otherwise = "'" ++ concatMap escSQ s ++ "'"
-  where
-    isSafe c = c `elem` (['A'..'Z'] ++ ['a'..'z'] ++ ['0'..'9'] ++ "-_./=:@,+")
-    escSQ '\'' = "'\\''"
-    escSQ c = [c]
-
 -- | Combine two strings with a single space
 infixr 4 +=+
 (+=+) :: String -> String -> String
 s +=+ t | lastMay s == Just '-' = s ++ t
         | headMay t == Just '-' = s ++ t
 s +=+ t = s ++ '-' : t
-
-error':: String -> IO a
-error' err = do
-  putStrLn err
-  exitFailure
