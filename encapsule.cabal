@@ -38,8 +38,10 @@ executable encapsule
   main-is:             Main.hs
   other-modules:       Paths_encapsule
                        Backup
+                       Config
                        Error
                        Expand
+                       Run
                        Script
                        ShellQuote
   autogen-modules:     Paths_encapsule
