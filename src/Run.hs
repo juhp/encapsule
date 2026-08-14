@@ -33,6 +33,7 @@ import System.Process (rawSystem)
 
 import Backup
 import Config (getCapabilities, loadConfig, progname, resolveCapabilities)
+import Enter
 import Expand
 import Script
 import ShellQuote
@@ -266,24 +267,6 @@ runCmd (RunOpts {..}) = do
           exitWith ret
   where
     debug msg = when debugging $ warning $ "debug:" +-+ msg
-
-enterContainer :: Bool -> Bool -> String -> [String] -> IO ()
-enterContainer dryrun running container command = do
-  homedir <- getHomeDirectory >>= canonicalizePath
-  username <- getEffectiveUserName
-  unless running $ do
-    putStr "start "
-    cmd_ "podman" ["start", container]
-  -- FIXME fails if no runuser!
-  let userCmd = if null command then ["bash"] else command
-      execCmd = ["podman", "exec", "-it", container,
-                 "runuser", "-u", username, "--",
-                 "env", "HOME=" ++ homedir] ++ userCmd
-  if dryrun
-    then putStrLn $ unwords (map shellQuote execCmd)
-    else do
-      ret <- rawSystem "podman" (drop 1 execCmd)
-      exitWith ret
 
 resolveProject :: FilePath -> IO FilePath
 resolveProject dir = do

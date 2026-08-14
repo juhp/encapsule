@@ -39,6 +39,7 @@ executable encapsule
   other-modules:       Paths_encapsule
                        Backup
                        Config
+                       Enter
                        Error
                        Expand
                        Run
