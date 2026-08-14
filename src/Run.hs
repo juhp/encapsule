@@ -239,10 +239,12 @@ runCmd (RunOpts {..}) = do
                    "--userns=keep-id",
                    "--name", container,
                    "--hostname", hostnameFromName container,
-                   "--user", "root",
                    "-e", "TERM",
                    "-e", "COLORTERM"]
-                ++ (if haveRunuser then ["-e", "HOME=" ++ homedir] else [])
+                ++ (if haveRunuser
+                    then ["-e", "HOME=" ++ homedir] ++
+                         ["--user", "root"]
+                    else [])
                 ++ workdirPart
                 ++ (if readonly
                     then ["--read-only", "--tmpfs", "/tmp", "--tmpfs", "/run"]
