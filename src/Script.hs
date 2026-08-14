@@ -56,12 +56,17 @@ setupScript dbg haveRunuser (Setup {..}) =
         runHide "mkdir" ["-p", homedir]
         runHide "chown" [username, homedir]
         -- FIXME? might be more consist not to condition on .bashrc
-        unless noskel $
-        -- (shell-monad bug) TAnd / TOr emit raw && / ||
+      unless noskel $
           whenCmd
-          (test (TNot $ TFileExists (T.unpack homedir </> ".bashrc"))
+          (test (TDirExists homedir)
+           -&&-
+           -- shell-monad bug: TAnd emits raw &&
+           test (TNot $ TFileExists (T.unpack homedir </> ".bashrc"))
            -&&-
            test (TDirExists (T.pack "/etc/skel"))) $
-          runHide "runuser" ["-u", username, "--", "cp", "-an", "/etc/skel/.", homedir <> "/"]
+          let cpArgs = ["-an", "/etc/skel/.", homedir <> "/"]
+          in if haveRunuser
+             then runHide "runuser" $ ["-u", username, "--"] ++ "cp" : cpArgs
+             else runHide "cp" cpArgs
       when (isNothing mprojectDir) $
         runHide "cd" []
