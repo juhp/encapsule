@@ -26,7 +26,7 @@ Encapsule images and containers are prefixed by `encapsule-`.
 `$ encapsule --version`
 
 ```
-0.4.1
+0.5
 ```
 
 `$ encapsule --help`
@@ -50,10 +50,9 @@ Available commands:
   rmi                      Remove an encapsule image
   stop                     Stop an encapsule container
   backup                   Create a tarball backup of a directory
+  commit                   Commit an encapsule image from a container
   create                   Create an encapsule container
   enter                    Connect to a encapsule container
-  refresh                  Re-commit an encapsule image from a (toolbox)
-                           container
   run                      Run a temporary encapsule container
 ```
 
@@ -68,14 +67,14 @@ from a (toolbox) image or container.
 `$ encapsule run --help`
 
 ```
-Usage: encapsule run TOOLBOX [-v|--volume HOST:CONTAINER[:opts]]
+Usage: encapsule run IMAGE [-v|--volume HOST:CONTAINER[:opts]]
                      [-e|--env KEY[=VALUE]] [--path DIR] [-i|--init CMD]
                      [--cap NAME] [--pull]
                      [(-H|--home DIR[:opts]) [--backup-home]]
                      [(-p|--project DIR[:opts]) [--backup-project]]
                      [-n|--name NAME] [--readonly] [--no-network] [--no-sudo]
                      [--no-skel] [--podman-opt OPTION] [--debug] [--dryrun]
-                     [--refresh] [CMD]
+                     [CMD]
 
   Run a temporary encapsule container
 
@@ -103,7 +102,6 @@ Available options:
   --podman-opt OPTION      Pass an option directly to podman
   --debug                  Show debug output
   --dryrun                 Print the podman command instead of running it
-  --refresh                Force re-commit of the toolbox image
   -h,--help                Show this help text
 ```
 

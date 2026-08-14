@@ -1,5 +1,13 @@
 # encapsule releases
 
+## 0.5 (2026-08-15)
+- `commit`: replaces `refresh` with simpler logic
+- `create`,`run`: now always act on a container image
+- bind-mount `/etc/localtime`
+- check first if runuser in container image
+- simplify setup script: no longer installs sudo and util-linux
+- also setup home without runuser
+
 ## 0.4.1 (2026-08-07)
 - require volume host paths to exist
 - drop `-P` for `--path` and add `-H` for `--home`
