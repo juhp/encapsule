@@ -16,7 +16,7 @@ where
 
 import Control.Monad.Extra (unless, when, whenJust, (>=>))
 import Data.List.Extra (intercalate, isPrefixOf, splitOn)
-import Data.Maybe (isJust, isNothing)
+import Data.Maybe (isJust, isNothing, listToMaybe)
 import qualified Data.Text.Lazy as TL
 import Safe (headMay, lastMay)
 import SimpleCmd
@@ -27,6 +27,7 @@ import System.Exit (exitWith)
 import System.FilePath ((</>), makeRelative, takeDirectory, takeFileName)
 import System.Posix.Files (fileOwner, getFileStatus, isSocket)
 import System.Posix.Process (getProcessID)
+import System.Posix.Types (UserID)
 import System.Posix.User (getEffectiveUserID, getEffectiveUserName)
 import System.Process (rawSystem)
 
@@ -112,6 +113,7 @@ runCmd (RunOpts {..}) = do
             , null caps
             , isNothing mproject || isNothing mname
             , isNothing mhome
+            , isNothing muser
             , not keep
             , not readonly
             , not nonetwork
@@ -159,7 +161,10 @@ runCmd (RunOpts {..}) = do
         resolveCapabilities capabilities caps
 
       -- FIXME perhaps add --no-runuser?
-      haveRunuser <- checkImageHasCmd debugging image "runuser"
+      uid <- getEffectiveUserID
+      (haveRunuser, mImageUser) <- probeImage debugging image uid
+      debug $ "runuser:" +-+ show haveRunuser
+      debug $ "image user:" +-+ maybe "(none)" id mImageUser
 
       homeVol <-
         case mtemphome of
@@ -176,8 +181,9 @@ runCmd (RunOpts {..}) = do
 
       username <-
         case muser of
-          Nothing -> getEffectiveUserName
           Just user -> return user
+          Nothing -> maybe getEffectiveUserName return mImageUser
+      debug $ "user:" +-+ username
 
       projectVol <-
         case mprojectDir of
@@ -247,7 +253,7 @@ runCmd (RunOpts {..}) = do
                    "-e", "TERM",
                    "-e", "COLORTERM"]
                 ++ ["-e=HOME=" ++ homedir | haveRunuser || isJust mhome]
-                ++ (if haveRunuser || isNothing mhome && isNothing muser
+                ++ (if haveRunuser || isNothing mhome && isNothing muser && isNothing mImageUser
                     then ["--user=root"]
                     else ["--user=" ++ username])
                 ++ workdirPart
@@ -328,14 +334,23 @@ s +=+ t | lastMay s == Just '-' = s ++ t
         | headMay t == Just '-' = s ++ t
 s +=+ t = s ++ '-' : t
 
--- running is faster explicit checks
-checkImageHasCmd :: Bool -> String -> String -> IO Bool
-checkImageHasCmd dbg image c = do
-  when dbg $ warning $ "checking for " ++ c
-  let sh = "command -v " ++ shellQuote c ++ " >/dev/null 2>&1"
+-- Probe image without keep-id so /etc/passwd is the image's, not host-injected.
+probeImage :: Bool -> String -> UserID -> IO (Bool, Maybe String)
+probeImage dbg image uid = do
+  let uidStr = show (fromIntegral uid :: Integer)
+  when dbg $ warning $ "checking for runuser and uid" +-+ uidStr
+  let sh = unlines
+        [ "command -v runuser >/dev/null 2>&1 && echo 1 || echo 0"
+        , passwdNameForUidSh uidStr
+        ]
       args = ["run", "--rm", "--pull=never", "--entrypoint", "/bin/sh", image, "-c", sh]
   when dbg $ putStrLn $ unwords ("podman" : map shellQuote args)
-  cmdBool "podman" args
+  (_, out, _) <- cmdFull "podman" args ""
+  let ls = filter (not . null) (lines out)
+  case ls of
+    (r:rest) ->
+      return (r == "1", listToMaybe rest)
+    [] -> return (False, Nothing)
 
 -- Pre-create a bind mount point under temp home when the container path is
 -- inside $HOME (directories, or empty files for file/socket mounts).

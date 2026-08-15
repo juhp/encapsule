@@ -86,7 +86,7 @@ main = do
       <*> many (strOptionWith 'i' "init" "CMD" "A bash snippet run when creating the encapsule container")
       <*> many (strOptionLongWith "cap" "NAME" "Enable a capability from the config file")
       <*> switchLongWith "pull" "Pull newer container image"
-      <*> optional (strOptionLongWith "user" "USER" "User in container (eg ubuntu)")
+      <*> optional (strOptionLongWith "user" "USER" "Override container user [default: host/image user with host UID]")
       <*> optional (backupDirOpt 'H' "home" "DIR[:opts]" "Mount a directory as a writable home (created if missing; use DIR:O to overlay)")
       <*> optional (backupDirOpt 'p' "project" "DIR[:opts]" "Mount a (project) directory as workdir (use DIR:O to overlay)")
       <*> optional nameOpt

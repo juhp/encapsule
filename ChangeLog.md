@@ -5,9 +5,10 @@
 - `create`,`run`: now always act on a container image
 - bind-mount `/etc/localtime`
 - check first if runuser in container image
+- use image passwd user with the same UID as the host (e.g. ubuntu); `--user` overrides
 - simplify setup script: no longer installs sudo and util-linux
 - also setup home without runuser
-- add `--user` option (needed for ubuntu user)
+- add `--user` option to override the container user
 - `run --debug` now also outputs podman command like `--dryrun`
 
 ## 0.4.1 (2026-08-07)
