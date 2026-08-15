@@ -65,7 +65,7 @@ setupScript dbg haveRunuser (Setup {..}) =
            test (TNot $ TFileExists (T.unpack homedir </> ".bashrc"))
            -&&-
            test (TDirExists (T.pack "/etc/skel"))) $
-          let cpArgs = ["-an", "/etc/skel/.", homedir <> "/"]
+          let cpArgs = ["-a", "--update=none", "/etc/skel/.", homedir <> "/"]
           in if haveRunuser
              then runHide "runuser" $ ["-u", username, "--"] ++ "cp" : cpArgs
              else runHide "cp" cpArgs
