@@ -20,6 +20,7 @@ build-type:          Simple
 extra-doc-files:     README.md
                      ChangeLog.md
                      example/config.toml
+extra-source-files:  test/run-tests.sh
 tested-with:         GHC == 8.10.7
                       || == 9.0.2
                       || == 9.2.8

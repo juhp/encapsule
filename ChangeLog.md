@@ -11,6 +11,7 @@
 - also setup home without runuser
 - add `--user` option to override the container user
 - `run --debug` now also outputs podman command like `--dryrun`
+- add `test/run-tests.sh` dryrun tests (needs podman and local images)
 
 ## 0.4.1 (2026-08-07)
 - require volume host paths to exist

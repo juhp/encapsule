@@ -224,6 +224,14 @@ stack install
 To build the latest release: `cabal install encapsule`
 or `stack install encapsule`.
 
+## Tests
+
+`test/run-tests.sh` checks `encapsule run --dryrun` against local `ubuntu:latest` and `fedora:latest` images. It needs podman, skips missing images, and does not pull. Live runs are skipped unless stdin is a TTY.
+
+```bash
+test/run-tests.sh
+```
+
 ## Runtime Requirements
 
 - [podman](https://podman.io/) and [buildah](https://buildah.io/)
