@@ -4,7 +4,7 @@
 - `commit`: replaces `refresh` with simpler logic
 - `create`,`run`: now always act on a container image
 - bind-mount `/etc/localtime`
-- check first if runuser in container image
+- check first if runuser and sudo are in the container image
 - use image passwd user with the same UID as the host (e.g. ubuntu); `--user` overrides
 - container `$HOME` follows the image passwd home when it is a real directory; `--home` mounts there
 - simplify setup script: no longer installs sudo and util-linux

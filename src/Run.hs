@@ -162,9 +162,10 @@ runCmd (RunOpts {..}) = do
 
       -- FIXME perhaps add --no-runuser?
       uid <- getEffectiveUserID
-      (haveRunuser, mImageUser, mPasswdHome) <-
+      (haveRunuser, haveSudo, mImageUser, mPasswdHome) <-
         probeImage debugging image uid muser
       debug $ "runuser:" +-+ show haveRunuser
+      debug $ "sudo:" +-+ show haveSudo
       debug $ "image user:" +-+ maybe "(none)" id mImageUser
       debug $ "passwd home:" +-+ maybe "(none)" id mPasswdHome
 
@@ -227,12 +228,12 @@ runCmd (RunOpts {..}) = do
               unwords $ map shellQuote userCmdParts
 
           setupArgs =
-            Setup nosudo noskel (TL.pack username) progname (fst <$> mhome) (TL.pack containerHome) mprojectDir
+            Setup nosudo noskel (TL.pack username) progname (isNothing mhome && isNothing mImageUser) (TL.pack containerHome) mprojectDir
 
           -- podman --workdir requires the path to exist at start; for no
           -- --workdir/--project, mkdir home first then cd (see workdirPart)
           setupParts =
-            let setup = setupScript debugging haveRunuser setupArgs
+            let setup = setupScript debugging haveRunuser haveSudo setupArgs
             in [setup | not (null setup)] ++
                [mkInitSetup allinits | not (null allinits)]
           finalCmd =
@@ -351,14 +352,15 @@ s +=+ t = s ++ '-' : t
 
 -- Probe image without keep-id so /etc/passwd is the image's, not host-injected.
 probeImage :: Bool -> String -> UserID -> Maybe String
-           -> IO (Bool, Maybe String, Maybe FilePath)
+           -> IO (Bool, Bool, Maybe String, Maybe FilePath)
 probeImage dbg image uid muser = do
   let uidStr = show (fromIntegral uid :: Integer)
       lookupSh = maybe (passwdEntryForUidSh uidStr) passwdEntryForNameSh muser
-  when dbg $ warning $ "checking for runuser and" +-+
+  when dbg $ warning $ "checking for runuser, sudo and" +-+
     maybe ("uid" +-+ uidStr) ("user" +-+) muser
   let sh = unlines
-        [ "command -v runuser >/dev/null 2>&1 && echo 1 || echo 0"
+        [ cmdPresentSh "runuser"
+        , cmdPresentSh "sudo"
         , lookupSh
         ]
       args = ["run", "--rm", "--pull=never", "--entrypoint", "/bin/sh", image, "-c", sh]
@@ -366,12 +368,17 @@ probeImage dbg image uid muser = do
   (_, out, _) <- cmdFull "podman" args ""
   return $
     case lines out of
-      (r:n:h:_) -> (r == "1", nonEmpty n, usablePasswdHome h)
-      (r:n:_) -> (r == "1", nonEmpty n, Nothing)
-      (r:_) -> (r == "1", Nothing, Nothing)
-      [] -> (False, Nothing, Nothing)
+      (r:s:n:h:_) -> (r == "1", s == "1", nonEmpty n, usablePasswdHome h)
+      (r:s:n:_) -> (r == "1", s == "1", nonEmpty n, Nothing)
+      (r:s:_) -> (r == "1", s == "1", Nothing, Nothing)
+      (r:_) -> (r == "1", False, Nothing, Nothing)
+      [] -> (False, False, Nothing, Nothing)
   where
     nonEmpty s = if null s then Nothing else Just s
+
+cmdPresentSh :: String -> String
+cmdPresentSh c =
+  "command -v " ++ shellQuote c ++ " >/dev/null 2>&1 && echo 1 || echo 0"
 
 -- Pre-create a bind mount point under temp home when the container path is
 -- inside $HOME (directories, or empty files for file/socket mounts).
