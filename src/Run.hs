@@ -264,11 +264,12 @@ runCmd (RunOpts {..}) = do
                 ++ podmanopts
                 ++ [image, "sh", "-c", execScript]
 
-      if dryrun
-        then cmdN "podman" $ map shellQuote args
-        else do
-          ret <- rawSystem "podman" args
-          exitWith ret
+      when (dryrun || debugging) $
+        -- FIXME colorize options
+        cmdN "podman" $ map shellQuote args
+      unless dryrun $ do
+        ret <- rawSystem "podman" args
+        exitWith ret
   where
     debug msg = when debugging $ warning $ "debug:" +-+ msg
 
