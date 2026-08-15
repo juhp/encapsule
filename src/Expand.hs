@@ -11,12 +11,16 @@ import System.FilePath ((</>))
 import System.Posix.Env (getEnvDefault)
 
 -- | Expand ~ and $VARS; canonicalize (host paths).
-expandPath :: FilePath -> String -> IO FilePath
-expandPath homedir s = expandHome canonicalizePath homedir s
+expandPath :: FilePath -- homedir
+           -> String -- path string
+           -> IO FilePath
+expandPath = expandHome canonicalizePath
 
 -- | Expand ~ and $VARS without canonicalize (container paths need not exist on the host).
-expandContainerPath :: FilePath -> String -> IO FilePath
-expandContainerPath homedir s = expandHome return homedir s
+expandContainerPath :: FilePath -- homedir
+                    -> String -- path string
+                    -> IO FilePath
+expandContainerPath = expandHome return
 
 expandHome :: (FilePath -> IO FilePath) -> FilePath -> String -> IO FilePath
 expandHome finish homedir ('~':'/':rest) = do

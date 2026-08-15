@@ -166,8 +166,8 @@ runCmd (RunOpts {..}) = do
         probeImage debugging image uid muser
       debug $ "runuser:" +-+ show haveRunuser
       debug $ "sudo:" +-+ show haveSudo
-      debug $ "image user:" +-+ maybe "(none)" id mImageUser
-      debug $ "passwd home:" +-+ maybe "(none)" id mPasswdHome
+      debug $ "image user:" +-+ fromMaybe "(none)" mImageUser
+      debug $ "passwd home:" +-+ fromMaybe "(none)" mPasswdHome
 
       username <-
         case muser of

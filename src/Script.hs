@@ -66,4 +66,4 @@ setupScript dbg haveRunuser haveSudo (Setup {..}) =
            then runHide "runuser" $ ["-u", username, "--"] ++ "cp" : cpArgs
            else runHide "cp" cpArgs
       when (isNothing mprojectDir) $
-        runHide "cd" $ if createhome then [] else [homedir]
+        runHide "cd" [homedir | not createhome]
