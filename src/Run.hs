@@ -16,7 +16,7 @@ where
 
 import Control.Monad.Extra (unless, when, whenJust, (>=>))
 import Data.List.Extra (intercalate, isPrefixOf, splitOn)
-import Data.Maybe (isNothing)
+import Data.Maybe (isJust, isNothing)
 import qualified Data.Text.Lazy as TL
 import Safe (headMay, lastMay)
 import SimpleCmd
@@ -48,6 +48,7 @@ data RunOpts = RunOpts
   , inits :: [String]
   , caps :: [String]
   , pull :: Bool
+  , muser :: Maybe String
   , mhome :: Maybe (FilePath, Bool)
   , mproject :: Maybe (FilePath, Bool)
   , mname :: Maybe String
@@ -173,7 +174,10 @@ runCmd (RunOpts {..}) = do
             return [temphome ++ ":" ++ homedir ++ maybeOpts homeMountOpts]
           Nothing -> return []
 
-      username <- getEffectiveUserName
+      username <-
+        case muser of
+          Nothing -> getEffectiveUserName
+          Just user -> return user
 
       projectVol <-
         case mprojectDir of
@@ -242,10 +246,10 @@ runCmd (RunOpts {..}) = do
                    "--hostname", hostnameFromName container,
                    "-e", "TERM",
                    "-e", "COLORTERM"]
-                ++ (if haveRunuser
-                    then ["-e", "HOME=" ++ homedir] ++
-                         ["--user", "root"]
-                    else [])
+                ++ ["-e=HOME=" ++ homedir | haveRunuser || isJust mhome]
+                ++ (if haveRunuser || isNothing mhome && isNothing muser
+                    then ["--user=root"]
+                    else ["--user=" ++ username])
                 ++ workdirPart
                 ++ (if readonly
                     then ["--read-only", "--tmpfs", "/tmp", "--tmpfs", "/run"]

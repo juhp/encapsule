@@ -7,6 +7,7 @@
 - check first if runuser in container image
 - simplify setup script: no longer installs sudo and util-linux
 - also setup home without runuser
+- add `--user` option (needed for ubuntu user)
 
 ## 0.4.1 (2026-08-07)
 - require volume host paths to exist
