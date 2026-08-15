@@ -16,7 +16,7 @@ where
 
 import Control.Monad.Extra (unless, when, whenJust, (>=>))
 import Data.List.Extra (intercalate, isPrefixOf, splitOn)
-import Data.Maybe (isJust, isNothing, listToMaybe)
+import Data.Maybe (fromMaybe, isJust, isNothing)
 import qualified Data.Text.Lazy as TL
 import Safe (headMay, lastMay)
 import SimpleCmd
@@ -101,8 +101,8 @@ runCmd (RunOpts {..}) = do
             return True
         else return False
   debug $ "running:" +-+ show running
-  homedir <- getHomeDirectory >>= canonicalizePath
-  debug $ "HOME:" +-+ homedir
+  hostHome <- getHomeDirectory >>= canonicalizePath
+  debug $ "HOME:" +-+ hostHome
   if running
     then do
       let noopts = and
@@ -131,7 +131,7 @@ runCmd (RunOpts {..}) = do
       when backupProject $
         whenJust mprojectDir $ backupCmd dryrun False Nothing
       -- * createContainer
-      mtemphome <- traverse (expandPath homedir >=> canonicalizePath) mhomeDir
+      mtemphome <- traverse (expandPath hostHome >=> canonicalizePath) mhomeDir
       case (mtemphome, mprojectDir) of
         (Just h, Just p) | h == p ->
           error' "--home and --project must be different directories"
@@ -162,28 +162,41 @@ runCmd (RunOpts {..}) = do
 
       -- FIXME perhaps add --no-runuser?
       uid <- getEffectiveUserID
-      (haveRunuser, mImageUser) <- probeImage debugging image uid
+      (haveRunuser, mImageUser, mPasswdHome) <-
+        probeImage debugging image uid muser
       debug $ "runuser:" +-+ show haveRunuser
       debug $ "image user:" +-+ maybe "(none)" id mImageUser
-
-      homeVol <-
-        case mtemphome of
-          Just temphome -> do
-            createDirectoryIfMissing True temphome
-            -- Mount targets under $HOME land inside the temp home volume;
-            -- create them as the user so podman does not leave root-owned paths.
-            case mprojectDir of
-              Just p -> ensureTempHomeMountPoint homedir temphome p p
-              Nothing -> return ()
-            mapM_ (ensureTempHomeVol homedir temphome) (vols ++ extraVols)
-            return [temphome ++ ":" ++ homedir ++ maybeOpts homeMountOpts]
-          Nothing -> return []
+      debug $ "passwd home:" +-+ maybe "(none)" id mPasswdHome
 
       username <-
         case muser of
           Just user -> return user
           Nothing -> maybe getEffectiveUserName return mImageUser
       debug $ "user:" +-+ username
+
+      let startAsRoot =
+            haveRunuser || isNothing mhome && isNothing muser && isNothing mImageUser
+          stayAsRoot = startAsRoot && not haveRunuser
+          (containerHome, overrideHome) =
+            if stayAsRoot
+            then ("/root", False)
+            else (fromMaybe hostHome mPasswdHome, isNothing mPasswdHome)
+      debug $ "container home:" +-+ containerHome
+
+      homeVol <-
+        case mtemphome of
+          Just temphome -> do
+            createDirectoryIfMissing True temphome
+            -- Mount targets under container $HOME land inside the temp home
+            -- volume; create them as the user so podman does not leave
+            -- root-owned paths.
+            case mprojectDir of
+              Just p -> ensureTempHomeMountPoint containerHome temphome p p
+              Nothing -> return ()
+            mapM_ (ensureTempHomeVol hostHome containerHome temphome)
+              (vols ++ extraVols)
+            return [temphome ++ ":" ++ containerHome ++ maybeOpts homeMountOpts]
+          Nothing -> return []
 
       projectVol <-
         case mprojectDir of
@@ -195,19 +208,18 @@ runCmd (RunOpts {..}) = do
           Nothing -> return []
       -- mounting real $HOME needs label=disable (no :z) on Fedora/SELinux
       let mountsRealHome =
-            Just homedir == mtemphome || Just homedir == mprojectDir
+            Just hostHome == mtemphome || Just hostHome == mprojectDir
           securityOpts =
             extraSecurityOpts ++
             ["label=disable" | mountsRealHome,
              "label=disable" `notElem` extraSecurityOpts]
           volumes = homeVol ++ vols ++ extraVols ++ projectVol
           envVars = envs ++ extraEnvs
-          allpaths = paths ++ extraPaths
           allinits = inits ++ extraInits
-
-          runuserCmd =
+      allpaths <- mapM (expandContainerPath containerHome) (paths ++ extraPaths)
+      let runuserCmd =
             let envParts =
-                  (if haveRunuser then (("HOME=" ++ homedir) :) else id) $
+                  (if overrideHome then (("HOME=" ++ containerHome) :) else id) $
                   pathEnvPart allpaths
                 userCmdParts = mkUserCmd command allinits
             in
@@ -215,7 +227,7 @@ runCmd (RunOpts {..}) = do
               unwords $ map shellQuote userCmdParts
 
           setupArgs =
-            Setup nosudo noskel (TL.pack username) progname (fst <$> mhome) (TL.pack homedir) mprojectDir
+            Setup nosudo noskel (TL.pack username) progname (fst <$> mhome) (TL.pack containerHome) mprojectDir
 
           -- podman --workdir requires the path to exist at start; for no
           -- --workdir/--project, mkdir home first then cd (see workdirPart)
@@ -236,14 +248,17 @@ runCmd (RunOpts {..}) = do
       when ("label=disable" `elem` securityOpts) $
         warning "SELinux labeling disabled for this container (label=disable)"
       unless dryrun $ debug $ "setup:" +-+ execScript
-      mounts <- mapM (addSelinuxLabel homedir) volumes
+      mounts <- mapM (addSelinuxLabel hostHome containerHome) volumes
       tzMounts <- hostTimezoneMount
       debug $ "timezone:" +-+ show tzMounts
 
       let workdirPart =
             case mprojectDir of
               Just d -> ["--workdir", d]
-              Nothing -> []
+              Nothing
+                | stayAsRoot || isJust mPasswdHome ->
+                    ["--workdir", containerHome]
+                | otherwise -> []
           args = "run" :
                  [ "--rm" | not keep] ++
                  [ "-it",
@@ -252,15 +267,15 @@ runCmd (RunOpts {..}) = do
                    "--hostname", hostnameFromName container,
                    "-e", "TERM",
                    "-e", "COLORTERM"]
-                ++ ["-e=HOME=" ++ homedir | haveRunuser || isJust mhome]
-                ++ (if haveRunuser || isNothing mhome && isNothing muser && isNothing mImageUser
+                ++ ["-e=HOME=" ++ containerHome | overrideHome]
+                ++ (if startAsRoot
                     then ["--user=root"]
                     else ["--user=" ++ username])
                 ++ workdirPart
                 ++ (if readonly
                     then ["--read-only", "--tmpfs", "/tmp", "--tmpfs", "/run"]
                          ++ case mtemphome of
-                              Nothing -> ["--tmpfs", homedir]
+                              Nothing -> ["--tmpfs", containerHome]
                               Just _ -> []
                     else [])
                 ++ (if nonetwork then ["--net", "none"] else [])
@@ -335,22 +350,28 @@ s +=+ t | lastMay s == Just '-' = s ++ t
 s +=+ t = s ++ '-' : t
 
 -- Probe image without keep-id so /etc/passwd is the image's, not host-injected.
-probeImage :: Bool -> String -> UserID -> IO (Bool, Maybe String)
-probeImage dbg image uid = do
+probeImage :: Bool -> String -> UserID -> Maybe String
+           -> IO (Bool, Maybe String, Maybe FilePath)
+probeImage dbg image uid muser = do
   let uidStr = show (fromIntegral uid :: Integer)
-  when dbg $ warning $ "checking for runuser and uid" +-+ uidStr
+      lookupSh = maybe (passwdEntryForUidSh uidStr) passwdEntryForNameSh muser
+  when dbg $ warning $ "checking for runuser and" +-+
+    maybe ("uid" +-+ uidStr) ("user" +-+) muser
   let sh = unlines
         [ "command -v runuser >/dev/null 2>&1 && echo 1 || echo 0"
-        , passwdNameForUidSh uidStr
+        , lookupSh
         ]
       args = ["run", "--rm", "--pull=never", "--entrypoint", "/bin/sh", image, "-c", sh]
   when dbg $ putStrLn $ unwords ("podman" : map shellQuote args)
   (_, out, _) <- cmdFull "podman" args ""
-  let ls = filter (not . null) (lines out)
-  case ls of
-    (r:rest) ->
-      return (r == "1", listToMaybe rest)
-    [] -> return (False, Nothing)
+  return $
+    case lines out of
+      (r:n:h:_) -> (r == "1", nonEmpty n, usablePasswdHome h)
+      (r:n:_) -> (r == "1", nonEmpty n, Nothing)
+      (r:_) -> (r == "1", Nothing, Nothing)
+      [] -> (False, Nothing, Nothing)
+  where
+    nonEmpty s = if null s then Nothing else Just s
 
 -- Pre-create a bind mount point under temp home when the container path is
 -- inside $HOME (directories, or empty files for file/socket mounts).
@@ -367,26 +388,29 @@ ensureTempHomeMountPoint homedir temphome hostPath containerPath =
         unless destExists $ writeFile dest ""
       else createDirectoryIfMissing True dest
 
-ensureTempHomeVol :: FilePath -> FilePath -> String -> IO ()
-ensureTempHomeVol homedir temphome spec = do
-  (hostPath, containerPath) <- volumePaths homedir spec
-  ensureTempHomeMountPoint homedir temphome hostPath containerPath
+ensureTempHomeVol :: FilePath -> FilePath -> FilePath -> String -> IO ()
+ensureTempHomeVol hostHome containerHome temphome spec = do
+  (hostPath, containerPath) <- volumePaths hostHome containerHome spec
+  ensureTempHomeMountPoint containerHome temphome hostPath containerPath
 
 -- Resolve host and container paths from a volume spec (before SELinux opts).
-volumePaths :: FilePath -> String -> IO (FilePath, FilePath)
-volumePaths homedir spec =
+volumePaths :: FilePath -> FilePath -> String -> IO (FilePath, FilePath)
+volumePaths hostHome containerHome spec =
   case break (== ':') spec of
     (hostPart, []) -> do
-      p <- expandPath homedir hostPart
-      return (p, p)
+      hostExp <- expandPath hostHome hostPart
+      containerExp <- expandContainerPath containerHome hostPart
+      return (hostExp, containerExp)
     (hostPart, _:rest') -> do
-      hostExp <- expandPath homedir hostPart
+      hostExp <- expandPath hostHome hostPart
       if isVolumePathStart rest'
         then do
           let containerPart = takeWhile (/= ':') rest'
-          containerExp <- expandPath homedir containerPart
+          containerExp <- expandContainerPath containerHome containerPart
           return (hostExp, containerExp)
-        else return (hostExp, hostExp)
+        else do
+          containerExp <- expandContainerPath containerHome hostPart
+          return (hostExp, containerExp)
 
 -- shell command construction
 
@@ -416,24 +440,25 @@ mkUserCmd com [] = com
 
 -- Rootless podman cannot lsetxattr on files owned by another uid (e.g. /etc/*)
 -- FIXME rather return Mount type or triple?
-addSelinuxLabel :: FilePath -> String -> IO String
-addSelinuxLabel homedir spec =
+addSelinuxLabel :: FilePath -> FilePath -> String -> IO String
+addSelinuxLabel hostHome containerHome spec =
   case break (== ':') spec of
     (hostPart, []) -> do
-      hostExp <- expandPath homedir hostPart
+      hostExp <- expandPath hostHome hostPart
+      containerExp <- expandContainerPath containerHome hostPart
       requireVolumeHost hostExp
       skipLabel <- shouldSkipLabel hostExp
-      return $ hostExp ++ ":" ++ hostExp ++ if skipLabel then "" else ":z"
+      return $ hostExp ++ ":" ++ containerExp ++ if skipLabel then "" else ":z"
     (hostPart, _:rest') -> do
-      hostExp <- expandPath homedir hostPart
+      hostExp <- expandPath hostHome hostPart
       requireVolumeHost hostExp
       let (containerPart, optsPart)
             | isVolumePathStart rest' =
                 case break (== ':') rest' of
                   (c, [])  -> (c, Nothing)
                   (c, _:o) -> (c, Just o)
-            | otherwise = (hostExp, if null rest' then Nothing else Just rest')
-      containerExp <- expandPath homedir containerPart
+            | otherwise = (hostPart, if null rest' then Nothing else Just rest')
+      containerExp <- expandContainerPath containerHome containerPart
       skipLabel <- shouldSkipLabel hostExp
       let labeled = case optsPart of
             Nothing ->
@@ -453,7 +478,7 @@ addSelinuxLabel homedir spec =
     shouldSkipLabel hostExp = do
       sockFile <- isSocketFile hostExp
       selfOwned <- ownedBySelf hostExp
-      return $ sockFile || hostExp == homedir || not selfOwned
+      return $ sockFile || hostExp == hostHome || not selfOwned
 
 -- later possibly also support /etc/timezone
 hostTimezoneMount :: IO [String]

@@ -1,7 +1,8 @@
 -- SPDX-License-Identifier: Apache-2.0
 
 module Expand (
-  expandPath
+  expandPath,
+  expandContainerPath,
   )
 where
 
@@ -9,12 +10,20 @@ import System.Directory (canonicalizePath)
 import System.FilePath ((</>))
 import System.Posix.Env (getEnvDefault)
 
+-- | Expand ~ and $VARS; canonicalize (host paths).
 expandPath :: FilePath -> String -> IO FilePath
-expandPath homedir ('~':'/':rest) = do
+expandPath homedir s = expandHome canonicalizePath homedir s
+
+-- | Expand ~ and $VARS without canonicalize (container paths need not exist on the host).
+expandContainerPath :: FilePath -> String -> IO FilePath
+expandContainerPath homedir s = expandHome return homedir s
+
+expandHome :: (FilePath -> IO FilePath) -> FilePath -> String -> IO FilePath
+expandHome finish homedir ('~':'/':rest) = do
   rest' <- expandEnvVars rest
-  canonicalizePath $ homedir </> rest'
-expandPath homedir "~" = return homedir
-expandPath _ s = expandEnvVars s
+  finish $ homedir </> rest'
+expandHome finish homedir "~" = finish homedir
+expandHome _ _ s = expandEnvVars s
 
 expandEnvVars :: String -> IO String
 expandEnvVars [] = return []
