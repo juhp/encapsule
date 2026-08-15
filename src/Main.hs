@@ -55,6 +55,7 @@ main = do
     , Subcommand "enter" "Connect to a encapsule container" $
       enterCmd
       <$> dryrunOpt
+      <*> debugOpt
       <*> pure True
       <*> optional (strArg "TOOLBOX")
       <*> optional projectNameOpt
@@ -77,6 +78,8 @@ main = do
         <$> strOptionWith s l m h
         <*> switchLongWith ("backup-" ++ l) ("Tarball" +-+ l +-+ "directory before starting")
 
+    debugOpt = switchLongWith "debug" "Show debug output"
+
     runOpts keep unique =
       Run.RunOpts
       <$> strArg "IMAGE"
@@ -97,7 +100,7 @@ main = do
       <*> switchLongWith "no-skel" "Don't copy /etc/skel into an empty home"
       <*> pure unique
       <*> many (strOptionLongWith "podman-opt" "OPTION" "Pass an option directly to podman")
-      <*> switchLongWith "debug" "Show debug output"
+      <*> debugOpt
       <*> dryrunOpt
       <*> many (strArg "CMD")
 
@@ -142,8 +145,8 @@ stopCmd name mprojectname = do
       cmd_ "podman" ["stop", containerName]
     else warning $ "container" +-+ containerName +-+ "not found"
 
-enterCmd :: Bool -> Bool -> Maybe String -> Maybe ProjectName -> IO ()
-enterCmd dryrun running mbase mprojectname = do
+enterCmd :: Bool -> Bool -> Bool -> Maybe String -> Maybe ProjectName -> IO ()
+enterCmd dryrun debug running mbase mprojectname = do
   regexp <-
     case mprojectname of
       Nothing -> return $ progname +=+ fromMaybe "" mbase
@@ -159,12 +162,12 @@ enterCmd dryrun running mbase mprojectname = do
     [] ->
       if running
       then do
-        enterCmd dryrun False mbase mprojectname
+        enterCmd dryrun debug False mbase mprojectname
       else error' "encapsule container not found"
     [c] -> do
       unless running $
         warning "no running encapsule container found"
-      enterContainer dryrun True c []
+      enterContainer dryrun debug True c []
     _ -> error' $ "multiple" +-+ (if running then  "running" else "") +-+ "containers match:\n" ++ unlines ps
 
 -- image management

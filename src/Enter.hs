@@ -6,7 +6,7 @@ module Enter (
   )
 where
 
-import Control.Monad (unless)
+import Control.Monad (unless, when)
 import SimpleCmd (cmd_, cmdFull)
 import System.Directory (canonicalizePath, getHomeDirectory)
 import System.Exit (exitWith)
@@ -15,8 +15,8 @@ import System.Posix.User (getEffectiveUserID, getEffectiveUserName)
 
 import ShellQuote
 
-enterContainer :: Bool -> Bool -> String -> [String] -> IO ()
-enterContainer dryrun running container command = do
+enterContainer :: Bool -> Bool -> Bool -> String -> [String] -> IO ()
+enterContainer dryrun debug running container command = do
   homedir <- getHomeDirectory >>= canonicalizePath
   unless running $ do
     putStr "start "
@@ -24,14 +24,14 @@ enterContainer dryrun running container command = do
   username <- lookupContainerUser container
   -- FIXME fails if no runuser!
   let userCmd = if null command then ["bash"] else command
-      execCmd = ["podman", "exec", "-it", container,
-                 "runuser", "-u", username, "--",
-                 "env", "HOME=" ++ homedir] ++ userCmd
-  if dryrun
-    then putStrLn $ unwords (map shellQuote execCmd)
-    else do
-      ret <- rawSystem "podman" (drop 1 execCmd)
-      exitWith ret
+      execArgs = ["exec", "-it", container,
+                  "runuser", "-u", username, "--",
+                  "env", "HOME=" ++ homedir] ++ userCmd
+  when (dryrun || debug) $
+    putStrLn $ unwords ("podman" : map shellQuote execArgs)
+  unless dryrun $ do
+    ret <- rawSystem "podman" execArgs
+    exitWith ret
 
 -- POSIX lookup of the passwd name for a numeric UID.
 passwdNameForUidSh :: String -> String

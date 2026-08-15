@@ -124,7 +124,7 @@ runCmd (RunOpts {..}) = do
       unless noopts $
         error' "cannot give options for an existing container!"
       warning "Entering existing container"
-      enterContainer dryrun True container command
+      enterContainer dryrun debugging True container command
     else do
       when backupHome $
         whenJust mhomeDir $ backupCmd dryrun False Nothing
