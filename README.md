@@ -226,10 +226,17 @@ or `stack install encapsule`.
 
 ## Tests
 
-`test/run-tests.sh` checks `encapsule run --dryrun` against local `ubuntu:latest` and `fedora:latest` images. It needs podman, skips missing images, and does not pull. Live runs are skipped unless stdin is a TTY.
+`cabal test` runs an hspec suite that drives the `encapsule` CLI
+(`--dryrun` against local images, plus an optional live `run`).
+It needs podman, skips (pending) missing images, and does not pull.
+
+Default images are `ubuntu:latest` and `fedora:latest`.
+Override with `ENCAPSULE_TEST_UBUNTU` and `ENCAPSULE_TEST_FEDORA`.
+Live tests need a TTY, or set `ENCAPSULE_LIVE=1` to try without one.
+`ENCAPSULE` selects a different encapsule binary.
 
 ```bash
-test/run-tests.sh
+cabal test
 ```
 
 ## Runtime Requirements
