@@ -14,12 +14,13 @@ module Run (
   )
 where
 
-import Control.Monad.Extra (unless, when, whenJust, (>=>))
+import Control.Monad.Extra (unless, unlessM, when, whenJust, (>=>))
 import Data.List.Extra (intercalate, isPrefixOf, splitOn)
 import Data.Maybe (fromMaybe, isJust, isNothing)
 import qualified Data.Text.Lazy as TL
 import Safe (headMay, lastMay)
 import SimpleCmd
+import SimplePrompt (promptEnter)
 import System.Directory (canonicalizePath, createDirectoryIfMissing,
                          doesDirectoryExist, doesFileExist, doesPathExist,
                          getHomeDirectory)
@@ -187,7 +188,10 @@ runCmd (RunOpts {..}) = do
       homeVol <-
         case mtemphome of
           Just temphome -> do
-            createDirectoryIfMissing True temphome
+            unlessM (doesDirectoryExist temphome) $ do
+              warning $ temphome +-+ "does not exist"
+              promptEnter "Press Enter to create it and continue"
+              createDirectoryIfMissing True temphome
             -- Mount targets under container $HOME land inside the temp home
             -- volume; create them as the user so podman does not leave
             -- root-owned paths.
@@ -390,10 +394,13 @@ ensureTempHomeMountPoint homedir temphome hostPath containerPath =
     hostIsSock <- isSocketFile hostPath
     if hostIsFile || hostIsSock
       then do
-        createDirectoryIfMissing True (takeDirectory dest)
-        destExists <- doesPathExist dest
-        unless destExists $ writeFile dest ""
-      else createDirectoryIfMissing True dest
+      -- FIXME maybe confirm?
+      createDirectoryIfMissing True (takeDirectory dest)
+      destExists <- doesPathExist dest
+      unless destExists $ writeFile dest ""
+      else
+      -- FIXME confirm?
+      createDirectoryIfMissing True dest
 
 ensureTempHomeVol :: FilePath -> FilePath -> FilePath -> String -> IO ()
 ensureTempHomeVol hostHome containerHome temphome spec = do

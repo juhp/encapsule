@@ -43,7 +43,7 @@ backupCmd dryrun yes moutput dir = do
       Just o -> expandPath homedir o
       Nothing -> do
         now <- getCurrentTime
-        let stamp = formatTime defaultTimeLocale "%Y-%m-%d_%H:%M:%SZ" now
+        let stamp = formatTime defaultTimeLocale "%Y-%m-%d_%H%M%SZ" now
         return $ src ++ "-" ++ stamp ++ ".tar.gz"
   outExists <- doesFileExist out
   when outExists $
