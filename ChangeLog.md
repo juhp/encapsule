@@ -12,6 +12,7 @@
 - add `--user` option to override the container user
 - `run --debug` now also outputs podman command like `--dryrun`
 - add hspec tests (`cabal test`; needs podman and local images)
+- add tasty-bench suite (`cabal bench`; needs podman and a local image)
 
 ## 0.4.1 (2026-08-07)
 - require volume host paths to exist

@@ -239,6 +239,16 @@ Live tests need a TTY, or set `ENCAPSULE_LIVE=1` to try without one.
 cabal test
 ```
 
+`cabal bench` times `encapsule run --dryrun` and a short `run -- true`
+against a local image (same env vars as tests). Skips if podman or the
+image is missing. It measures wall-clock time (podman wait), not
+Haskell CPU time. To log timings:
+
+```bash
+cabal bench --benchmark-options '--csv /tmp/encapsule-bench.csv --time-limit 3'
+# later: --baseline /tmp/encapsule-bench.csv
+```
+
 ## Runtime Requirements
 
 - [podman](https://podman.io/) and [buildah](https://buildah.io/)
