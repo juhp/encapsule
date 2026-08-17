@@ -52,7 +52,7 @@ backupCmd dryrun yes moutput dir = do
     else error' $ "output already exists:" +-+ out +-+ "(use -y to overwrite)"
   let parent = takeDirectory src
       base = takeFileName src
-      args = ["czf", out, "-C", parent, base]
+      args = ["czf", out, "--exclude-vcs-ignores", "-C", parent, base]
   if dryrun
     then putStrLn $ unwords $ "tar" : map shellQuote args
     else do
