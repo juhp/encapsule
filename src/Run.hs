@@ -21,9 +21,11 @@ import qualified Data.Text.Lazy as TL
 import Safe (headMay, lastMay)
 import SimpleCmd
 import SimplePrompt (promptEnter)
+import System.Console.Pretty (Color(..), color, supportsPretty)
 import System.Directory (canonicalizePath, createDirectoryIfMissing,
                          doesDirectoryExist, doesFileExist, doesPathExist,
                          getHomeDirectory)
+import System.Environment (lookupEnv)
 import System.Exit (exitWith)
 import System.FilePath ((</>), makeRelative, takeDirectory, takeFileName)
 import System.Posix.Files (fileOwner, getFileStatus, isSocket)
@@ -295,14 +297,27 @@ runCmd (RunOpts {..}) = do
                 ++ podmanopts
                 ++ [image, "sh", "-c", execScript]
 
-      when (dryrun || debugging) $
-        -- FIXME colorize options
-        cmdN "podman" $ map shellQuote args
+      when (dryrun || debugging) $ do
+        useColor <- do
+          pretty <- supportsPretty
+          noColor <- lookupEnv "NO_COLOR"
+          return $ pretty && maybe True null noColor
+        cmdN "podman" $ map (colorizeOpt useColor) args
       unless dryrun $ do
         ret <- rawSystem "podman" args
         exitWith ret
   where
     debug msg = when debugging $ warning $ "debug:" +-+ msg
+
+colorizeOpt :: Bool -> String -> String
+colorizeOpt useColor arg
+  | "-" `isPrefixOf` arg =
+      case break (== '=') arg of
+        (flag, '=':val) -> tint flag ++ '=' : shellQuote val
+        (flag, _) -> tint flag
+  | otherwise = shellQuote arg
+  where
+    tint s = if useColor then color Cyan s else s
 
 resolveProject :: FilePath -> IO FilePath
 resolveProject dir = do

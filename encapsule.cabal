@@ -53,6 +53,7 @@ executable encapsule
                      , filepath
                      , containers
                      , process
+                     , pretty-terminal
                      , safe
                      , shell-monad
                      , simple-cmd >= 0.2.3
