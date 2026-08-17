@@ -96,6 +96,7 @@ spec = do
         let mHost = debugField out0 "HOME"
         out <- dryrun ["--home", homeTmp, img]
         out `shouldContain` (homeAbs ++ ":/home/ubuntu")
+        out `shouldContain` "label=level:s0"
         case mHost of
           Just h -> out `shouldNotContain` (homeAbs ++ ":" ++ h)
           Nothing -> return ()

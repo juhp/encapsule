@@ -211,12 +211,17 @@ runCmd (RunOpts {..}) = do
               then return [d ++ ':' : d ++ maybeOpts projectMountOpts]
               else error' $ "project dir not found:" +-+ d
           Nothing -> return []
-      -- mounting real $HOME needs label=disable (no :z) on Fedora/SELinux
+      -- mounting real $HOME needs label=disable (no :z) on Fedora/SELinux.
+      -- --home DIR still uses :z (shared type); pin MCS to s0 so podman does
+      -- not stamp the container's private categories on the host tree.
       let mountsRealHome =
             Just hostHome == mtemphome || Just hostHome == mprojectDir
           securityOpts =
             extraSecurityOpts ++
             ["label=disable" | mountsRealHome,
+             "label=disable" `notElem` extraSecurityOpts] ++
+            ["label=level:s0" | isJust mtemphome && not mountsRealHome,
+             "label=level:s0" `notElem` extraSecurityOpts,
              "label=disable" `notElem` extraSecurityOpts]
           volumes = homeVol ++ vols ++ extraVols ++ projectVol
           envVars = envs ++ extraEnvs
