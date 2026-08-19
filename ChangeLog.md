@@ -10,6 +10,7 @@
 - container `$HOME` follows the image passwd home when it is a real directory; `--home` mounts there
 - simplify setup script: no longer installs sudo and util-linux
 - now also setup home if no runuser
+- `--no-sudo` no longer attempts to remove sudo
 - add `--user` option to override the container user
 - `run --debug` now also outputs podman command like `--dryrun`
 - dryrun/debug colors podman flag names in cyan (honors `NO_COLOR`)

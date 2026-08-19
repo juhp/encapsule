@@ -42,11 +42,8 @@ setupScript dbg haveRunuser haveSudo (Setup {..}) =
 
     sudoSetup =
       when haveSudo $
-      if nosudo
-      -- FIXME actual sudo path
-      then runHide "rm" ["-f", "/usr/bin/sudo"]
-      else
-        let sudoers = "/etc/sudoers.d" in
+      unless nosudo $
+      let sudoers = "/etc/sudoers.d" in
           whenCmd (test $ TDirExists sudoers) $ do
           runHide "echo" [username, "ALL=(ALL) NOPASSWD:ALL"] `redir` (sudoers </> program)
           runHide "chmod" ["440", T.pack sudoers]
