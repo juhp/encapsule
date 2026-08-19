@@ -28,6 +28,6 @@ jobs:
             ${{ runner.os }}-${{ matrix.ghc }}-
             ${{ runner.os }}-
       - run: cabal update
-      - run: cabal build
+      - run: cabal build --enable-tests --enable-benchmarks
       - run: cabal check
       - run: cabal sdist
