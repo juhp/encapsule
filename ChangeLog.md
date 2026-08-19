@@ -6,13 +6,14 @@
 - `create`,`run`: now always act on a container image
 - bind-mount `/etc/localtime`
 - check first if runuser and sudo are in the container image
-- use image passwd user with the same UID as the host (e.g. ubuntu); `--user` overrides
+- use image passwd user with the same UID as the host (e.g. support ubuntu)
 - container `$HOME` follows the image passwd home when it is a real directory; `--home` mounts there
 - simplify setup script: no longer installs sudo and util-linux
-- also setup home without runuser
+- now also setup home if no runuser
 - add `--user` option to override the container user
 - `run --debug` now also outputs podman command like `--dryrun`
 - dryrun/debug colors podman flag names in cyan (honors `NO_COLOR`)
+- `backup` now excludes local git ignored files
 - add hspec tests (`cabal test`; needs podman and local images)
 - add tasty-bench suite (`cabal bench`; needs podman and a local image)
 

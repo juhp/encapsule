@@ -11,15 +11,16 @@ bind-mount your home directory or integrate with the host by default.
 You can explicitly choose what dir(s) or file(s) to mount or features to enable,
 selecting user-configured "capabilities" that the encapsule container can access.
 
-```
-encapsule COMMAND TOOLBOX [options] [CMD...]
-```
-
-if TOOLBOX is a container it will be committed (saved) to an "encapsule" container image from the named toolbox container using buildah.
-(Though toolbox containers are recommended, as such it doesn't have to be a toolbox container.)
-Your original toolbox container is left untouched: its system configuration and fs are just used as the base fs for the encapsule image.
+Most encapsule subcommands act on an image.
+- If you wish to use an existing toolbox container as a starting point you can `commit` it to an "encapsule" container image.
+  - Note your original toolbox container is left untouched: its system configuration and fs are just used as the base fs for the encapsule image (though its original bind mounts including $HOME will be not be included by default).
+- Alternatively you can roll your own image or run a vanilla image like fedora:latest, fedora-toolbox:44 or `ubuntu:latest`, etc.
+  - However toolbox images or containers are recommended because they include `sudo` and `runuser`, but as such it doesn't have to be a toolbox container.
+  - For example since the fedora base container does not include runuser it runs as `--user root` by default (since as of 0.5 util-linux is no longer
+installed by default into encapsule containers: this may be addressed in future).
 
 Encapsule images and containers are prefixed by `encapsule-`.
+There is no need to use this prefix normally - it is implicit.
 
 ## Usage
 
@@ -69,7 +70,7 @@ from a (toolbox) image or container.
 ```
 Usage: encapsule run IMAGE [-v|--volume HOST:CONTAINER[:opts]]
                      [-e|--env KEY[=VALUE]] [--path DIR] [-i|--init CMD]
-                     [--cap NAME] [--pull]
+                     [--cap NAME] [--pull] [--user USER]
                      [(-H|--home DIR[:opts]) [--backup-home]]
                      [(-p|--project DIR[:opts]) [--backup-project]]
                      [-n|--name NAME] [--readonly] [--no-network] [--no-sudo]
@@ -87,6 +88,8 @@ Available options:
                            container
   --cap NAME               Enable a capability from the config file
   --pull                   Pull newer container image
+  --user USER              Override container user [default: host/image user
+                           with host UID]
   -H,--home DIR[:opts]     Mount a directory as a writable home (created if
                            missing; use DIR:O to overlay)
   --backup-home            Tarball home directory before starting
@@ -106,7 +109,7 @@ Available options:
 ```
 
 ### `create` command
-`create` is similar but creates a reusable container for a project and/or tmp home.
+`create` is similar but creates a reusable container for a project and/or temp home.
 
 ### `enter` command
 `enter` is used to join an existing (typically running) encapsule container.
@@ -119,20 +122,26 @@ Use `-n/--name NAME` for a custom image name (`encapsule-NAME`, or `^NAME` to sk
 
 ```bash
 # Temporary isolated shell without host fs access
-~$ encapsule run my-toolbox
+~$ encapsule run fedora-toolbox:44
 
 # Mount current (project) directory path and set it as the working directory
-# (also names the container after the project, e.g. encapsule-my-toolbox-myproject)
-~/myproj$ encapsule create my-toolbox -p .
+# (also names the container after the project, e.g. encapsule-ubuntu-myproj)
+~/myproj$ encapsule create ubuntu -p .
 
 # Bind mount a volume
-$ encapsule run my-toolbox -v ~/data:/data
+$ encapsule run fedora:latest -v ~/data:/data
 
-# Mount a temp "home" directory (created if it doesn't exist)
-$ encapsule run my-toolbox --home /tmp/somedir
+# create a custom "encapsule-fedora-toolbox-45" image from a toolbox container
+$ encapsule commit fedora-toolbox-45
+
+# Mount a temp "home" directory in the committed encapsule image
+$ encapsule run fedora-toolbox-45 --home ~/tmp/home
+
+# Save another encapsule image named "encapsule-dev"
+$ encapsule commit --name dev fedora-toolbox-45
 
 # Use capabilities from one's config
-$ encapsule create my-toolbox --cap ssh --cap git
+$ encapsule create dev --cap ssh --cap git
 
 # Read-only container filesystem
 $ encapsule run my-toolbox --readonly
@@ -146,15 +155,14 @@ $ encapsule run my-toolbox -e MY_VAR=hello -e LANG --path ~/.local/bin
 # Run a specific command
 $ encapsule run my-toolbox -- ls /
 
+# Run a setup init scriptlet
+$ encapsule run fedora-toolbox:45 -p proj --init "dnf install -y gcc make"
+
 # Dry run: print the full podman command without running it
 $ encapsule run --dryrun my-toolbox
-
-# run directly from an image
-$ encapsule run fedora:44 --home tmphome
 ```
 
-Note a saved encapsule image remains cached for next time,
-but can be removed with the `rmi` command.
+There is a `rmi` command to remove an encapsule images no longer needed.
 
 ## Capabilities
 
@@ -191,17 +199,16 @@ If the host and container paths are the same, you can use the shorthand
 
 ## How it works
 
-1. Commits the named toolbox container to an encapsule image using `buildah commit`
-   (reuses the existing image unless `--refresh` is passed)
+1. Commits the named toolbox container to an encapsule image using `buildah commit`.
 2. Runs `podman run` with `--userns=keep-id` so you are your own user, not root
-3. Tries to install runuser (util-linux) and sudo (unless `--no-sudo`) if they are missing with dnf or apt-get.
-4. Sets up passwordless `sudo` inside the encapsule container (unless `--no-sudo`)
-5. Bind mounts get SELinux `:z` (shared) labels automatically,
+3. Sets up passwordless `sudo` inside the encapsule container (unless `--no-sudo`)
+4. Bind mounts get SELinux `:z` (shared) labels automatically,
    so multiple containers can safely access the same directories
-6. When `-p/--project DIR` is used (and `--name` isn't), the container name
+5. When `-p/--project DIR` is used (and `--name` isn't), the container name
    includes the project directory's name (e.g. `encapsule-mytoolbox-myproject`),
    so you can run the same toolbox against different projects at the same time
-   in separate encapsule containers
+   in separate encapsule containers. Though for different project paths with
+   the same directory name the container name will not be differentiated.
 
 ## Installation
 
