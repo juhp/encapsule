@@ -119,6 +119,8 @@ spec = do
             (_, Just hosthome) -> do
               assertUserSwitch out user
               out `shouldContain` ("-e=HOME=" ++ hosthome)
+              out `shouldContain` "--passwd-entry"
+              out `shouldContain` (":" ++ hosthome ++ ":/bin/sh")
             (_, Nothing) ->
               expectationFailure "fedora debug HOME line"
         other ->

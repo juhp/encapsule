@@ -31,7 +31,8 @@ import System.FilePath ((</>), makeRelative, takeDirectory, takeFileName)
 import System.Posix.Files (fileOwner, getFileStatus, isSocket)
 import System.Posix.Process (getProcessID)
 import System.Posix.Types (UserID)
-import System.Posix.User (getEffectiveUserID, getEffectiveUserName)
+import System.Posix.User (getEffectiveGroupID, getEffectiveUserID,
+                          getEffectiveUserName)
 import System.Process (rawSystem)
 
 
@@ -165,6 +166,9 @@ runCmd (RunOpts {..}) = do
 
       -- FIXME perhaps add --no-runuser?
       uid <- getEffectiveUserID
+      gid <- getEffectiveGroupID
+      let uidStr = show (fromIntegral uid :: Integer)
+          gidStr = show (fromIntegral gid :: Integer)
       (haveRunuser, haveSudo, mImageUser, mPasswdHome) <-
         probeImage debugging image uid muser
       debug $ "runuser:" +-+ show haveRunuser
@@ -283,6 +287,14 @@ runCmd (RunOpts {..}) = do
                    "-e", "TERM",
                    "-e", "COLORTERM"]
                 ++ ["-e=HOME=" ++ containerHome | overrideHome]
+                -- keep-id copies --workdir into the passwd home, defaulting
+                -- to "/" ; set the real home when the image has no passwd dir
+                ++ (if overrideHome
+                    then ["--passwd-entry",
+                          intercalate ":"
+                            [username, "*", uidStr, gidStr, "",
+                             containerHome, "/bin/sh"]]
+                    else [])
                 ++ (if startAsRoot
                     then ["--user=root"]
                     else ["--user=" ++ username])

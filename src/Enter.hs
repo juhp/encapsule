@@ -9,7 +9,7 @@ module Enter (
 where
 
 import Control.Monad (unless, when)
-import Data.Maybe (isNothing)
+import Data.Maybe (fromMaybe, isNothing)
 import SimpleCmd (cmd_, cmdFull)
 import System.Directory (canonicalizePath, getHomeDirectory)
 import System.Exit (exitWith)
@@ -27,8 +27,9 @@ enterContainer dryrun debug running container command = do
     cmd_ "podman" ["start", container]
   (username, mPasswdHome) <- lookupContainerUser container
   let userCmd = if null command then ["bash"] else command
+      homeDir = fromMaybe hostHome mPasswdHome
       homeEnv =
-        if isNothing mPasswdHome then ["env", "HOME=" ++ hostHome] else []
+        if isNothing mPasswdHome then ["env", "HOME=" ++ homeDir] else []
       execArgs = ["exec", "-it", "--user", username, container]
                  ++ homeEnv ++ userCmd
   when (dryrun || debug) $
@@ -52,7 +53,8 @@ passwdEntrySh match =
   "while IFS=: read name _ id _ _ home _; do " ++ match ++
   " && echo \"$name\" && echo \"$home\" && break; done < /etc/passwd"
 
--- Empty, "/", or non-absolute passwd homes are dummy (e.g. keep-id).
+-- Empty, "/", or non-absolute passwd homes are dummy
+-- (keep-id copies --workdir, which defaults to "/").
 usablePasswdHome :: String -> Maybe FilePath
 usablePasswdHome h
   | null h || h == "/" = Nothing
