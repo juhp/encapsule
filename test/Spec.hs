@@ -8,9 +8,11 @@ import Data.List (isInfixOf)
 import Data.Maybe (fromMaybe)
 import System.Directory (canonicalizePath, createDirectoryIfMissing,
                          removeDirectoryRecursive)
+import System.Exit (ExitCode(..))
 import System.FilePath ((</>))
 import System.Posix.Process (getProcessID)
 import System.Posix.Temp (mkdtemp)
+import System.Process (readProcessWithExitCode)
 import Test.Hspec
 
 import EncapsuleTest
@@ -140,6 +142,30 @@ spec = do
               "debug sudo line for " ++ img ++ " (got: " ++
               show other ++ ")"
 
+  describe "commit" $ do
+    it "offers --name" $ do
+      out <- encapsule ["commit", "--help"]
+      out `shouldContain` "-n,--name NAME"
+
+    it "names the image encapsule-CONTAINER by default" $
+      withScratchContainer $ \cname -> do
+        out <- encapsule ["commit", "--dryrun", cname]
+        out `shouldContain` "buildah commit"
+        out `shouldContain` ("encapsule-" ++ cname)
+
+    it "applies --name to the encapsule image" $
+      withScratchContainer $ \cname -> do
+        pid <- getProcessID
+        let n = "commitname" ++ show pid
+        out <- encapsule ["commit", "--dryrun", "--name", n, cname]
+        out `shouldContain` ("encapsule-" ++ n)
+
+    it "applies --name ^ without encapsule- prefix" $
+      withScratchContainer $ \cname -> do
+        out <- encapsule ["commit", "--dryrun", "--name", "^bare-encap-img", cname]
+        out `shouldContain` "bare-encap-img"
+        out `shouldNotContain` "encapsule-bare-encap-img"
+
   describe "live" $ do
     it "runs id -un in the container" $
       withGenericImage $ \img -> do
@@ -169,3 +195,17 @@ withTestDir :: (FilePath -> IO a) -> IO a
 withTestDir act = do
   d <- mkdtemp "/tmp/encapsule-test-XXXXXX"
   act d `finally` removeDirectoryRecursive d
+
+withScratchContainer :: (String -> IO ()) -> IO ()
+withScratchContainer act =
+  withGenericImage $ \img -> do
+    (code, out, err) <- readProcessWithExitCode "podman"
+      ["create", img, "true"] ""
+    unless (code == ExitSuccess) $
+      pendingWith $ "podman create failed: " ++ err
+    case lines out of
+      cid:_ | not (null cid) ->
+        act cid `finally` do
+          _ <- readProcessWithExitCode "podman" ["rm", "-f", cid] ""
+          return ()
+      _ -> pendingWith "podman create produced no id"

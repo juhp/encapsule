@@ -111,6 +111,10 @@ Available options:
 ### `enter` command
 `enter` is used to join an existing (typically running) encapsule container.
 
+### `commit` command
+`commit` saves a container as an encapsule image (`encapsule-CONTAINER` by default).
+Use `-n/--name NAME` for a custom image name (`encapsule-NAME`, or `^NAME` to skip the prefix).
+
 ## Examples
 
 ```bash

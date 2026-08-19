@@ -49,6 +49,7 @@ main = do
     , Subcommand "commit" "Commit an encapsule image from a container" $
       commitCmd
       <$> dryrunOpt
+      <*> optional (strOptionWith 'n' "name" "NAME" "Optional image name (prefix with '^' to skip 'encapsule-' prefix)")
       <*> strArg "TOOLBOX"
     , Subcommand "create" "Create an encapsule container" $
       runCmd <$> runOpts True False
@@ -172,12 +173,14 @@ enterCmd dryrun debug running mbase mprojectname = do
 
 -- image management
 
-commitCmd :: Bool -> String -> IO ()
-commitCmd dryrun toolbox = do
+commitCmd :: Bool -> Maybe String -> String -> IO ()
+commitCmd dryrun mname toolbox = do
   containerExists <- cmdBool "podman" ["container", "exists", toolbox]
   unless containerExists $
     error' $ "container '" ++ toolbox ++ "' not found"
-  let image = progname +=+ toolbox
+  let image = maybe (progname +=+ toolbox) encapsuleName mname
+      encapsuleName ('^':n) = n
+      encapsuleName n = progname +=+ n
   imageExists <- cmdBool "podman" ["image", "exists", image]
   unless imageExists $
     putStrLn $ "creating new image:" +-+ image
