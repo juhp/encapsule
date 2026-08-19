@@ -26,12 +26,10 @@ enterContainer dryrun debug running container command = do
     putStr "start "
     cmd_ "podman" ["start", container]
   (username, mPasswdHome) <- lookupContainerUser container
-  -- FIXME fails if no runuser!
   let userCmd = if null command then ["bash"] else command
       homeEnv =
         if isNothing mPasswdHome then ["env", "HOME=" ++ hostHome] else []
-      execArgs = ["exec", "-it", container,
-                  "runuser", "-u", username, "--"]
+      execArgs = ["exec", "-it", "--user", username, container]
                  ++ homeEnv ++ userCmd
   when (dryrun || debug) $
     putStrLn $ unwords ("podman" : map shellQuote execArgs)

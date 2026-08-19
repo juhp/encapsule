@@ -6,6 +6,11 @@
 
 
 module Script (
+  SwitchUser(..),
+  chooseSwitchUser,
+  canSwitchUser,
+  switchUserArgs,
+  switchLabel,
   setupScript,
   Setup(..)
   )
@@ -20,6 +25,28 @@ import System.Posix.IO
 
 default (T.Text)
 
+data SwitchUser = Runuser | Sudo | None
+
+chooseSwitchUser :: Bool -> Bool -> SwitchUser
+chooseSwitchUser True _     = Runuser
+chooseSwitchUser False True = Sudo
+chooseSwitchUser _ _        = None
+
+canSwitchUser :: SwitchUser -> Bool
+canSwitchUser None = False
+canSwitchUser _    = True
+
+-- argv prefix; empty for None
+switchUserArgs :: SwitchUser -> String -> [String]
+switchUserArgs Runuser u = ["runuser", "-u", u, "--"]
+switchUserArgs Sudo    u = ["sudo", "-n", "--preserve-env", "-u", u, "--"]
+switchUserArgs None    _ = []
+
+switchLabel :: SwitchUser -> String
+switchLabel Runuser = "runuser"
+switchLabel Sudo    = "sudo"
+switchLabel None    = "none"
+
 data Setup = Setup
   { nosudo :: Bool
   , noskel :: Bool
@@ -30,8 +57,8 @@ data Setup = Setup
   , mprojectDir :: Maybe FilePath
   }
 
-setupScript :: Bool -> Bool -> Bool -> Setup -> String
-setupScript dbg haveRunuser haveSudo (Setup {..}) =
+setupScript :: Bool -> SwitchUser -> Bool -> Setup -> String
+setupScript dbg switch haveSudo (Setup {..}) =
   T.unpack . T.replace "\t" " " . linearScript $
   sudoSetup >> homeSetup
   where
@@ -53,14 +80,14 @@ setupScript dbg haveRunuser haveSudo (Setup {..}) =
         runHide "mkdir" ["-p", homedir]
         runHide "chown" [username, homedir]
       unless noskel $
-        when haveRunuser $
+        when (canSwitchUser switch) $
         whenCmd
         (test (TDirExists homedir)
          -&&-
          test (TDirExists (T.pack "/etc/skel"))) $
         let cpArgs = ["-a", "--update=none", "/etc/skel/.", homedir <> "/"]
-        in if haveRunuser
-           then runHide "runuser" $ ["-u", username, "--"] ++ "cp" : cpArgs
-           else runHide "cp" cpArgs
+        in case map T.pack $ switchUserArgs switch (T.unpack username) of
+             prog:args -> runHide prog $ args ++ "cp" : cpArgs
+             [] -> return ()
       when (isNothing mprojectDir) $
         runHide "cd" [homedir | not createhome]

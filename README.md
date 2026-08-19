@@ -201,10 +201,12 @@ If the host and container paths are the same, you can use the shorthand
 
 1. Commits the named toolbox container to an encapsule image using `buildah commit`.
 2. Runs `podman run` with `--userns=keep-id` so you are your own user, not root
-3. Sets up passwordless `sudo` inside the encapsule container (unless `--no-sudo`)
-4. Bind mounts get SELinux `:z` (shared) labels automatically,
+3. Drops from root with `runuser` if present, otherwise `sudo -u`
+   (`enter` uses `podman exec --user`)
+4. Sets up passwordless `sudo` inside the encapsule container (unless `--no-sudo`)
+5. Bind mounts get SELinux `:z` (shared) labels automatically,
    so multiple containers can safely access the same directories
-5. When `-p/--project DIR` is used (and `--name` isn't), the container name
+6. When `-p/--project DIR` is used (and `--name` isn't), the container name
    includes the project directory's name (e.g. `encapsule-mytoolbox-myproject`),
    so you can run the same toolbox against different projects at the same time
    in separate encapsule containers. Though for different project paths with

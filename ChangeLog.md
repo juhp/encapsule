@@ -1,6 +1,8 @@
 # encapsule releases
 
 ## 0.5 (2026-08-15)
+- `run`,`create`: fall back to `sudo -u` when `runuser` is missing
+- `enter`: use `podman exec --user` instead of `runuser`
 - `commit`: add `--name` to set the encapsule image name
 - `commit`: replaces `refresh` with simpler logic
 - `create`,`run`: now always act on a container image

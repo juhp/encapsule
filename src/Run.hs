@@ -178,13 +178,16 @@ runCmd (RunOpts {..}) = do
           Nothing -> maybe getEffectiveUserName return mImageUser
       debug $ "user:" +-+ username
 
-      let startAsRoot =
-            haveRunuser || isNothing mhome && isNothing muser && isNothing mImageUser
-          stayAsRoot = startAsRoot && not haveRunuser
+      let switch = chooseSwitchUser haveRunuser haveSudo
+          startAsRoot =
+            canSwitchUser switch
+            || isNothing mhome && isNothing muser && isNothing mImageUser
+          stayAsRoot = startAsRoot && not (canSwitchUser switch)
           (containerHome, overrideHome) =
             if stayAsRoot
             then ("/root", False)
             else (fromMaybe hostHome mPasswdHome, isNothing mPasswdHome)
+      debug $ "switch:" +-+ switchLabel switch
       debug $ "container home:" +-+ containerHome
 
       homeVol <-
@@ -229,7 +232,7 @@ runCmd (RunOpts {..}) = do
           envVars = envs ++ extraEnvs
           allinits = inits ++ extraInits
       allpaths <- mapM (expandContainerPath containerHome) (paths ++ extraPaths)
-      let runuserCmd =
+      let userCmd =
             let envParts =
                   (if overrideHome then (("HOME=" ++ containerHome) :) else id) $
                   pathEnvPart allpaths
@@ -244,13 +247,13 @@ runCmd (RunOpts {..}) = do
           -- podman --workdir requires the path to exist at start; for no
           -- --workdir/--project, mkdir home first then cd (see workdirPart)
           setupParts =
-            let setup = setupScript debugging haveRunuser haveSudo setupArgs
+            let setup = setupScript debugging switch haveSudo setupArgs
             in [setup | not (null setup)] ++
                [mkInitSetup allinits | not (null allinits)]
           finalCmd =
-            if haveRunuser
-            then "exec runuser -u" +-+ username +-+ "--" +-+ runuserCmd
-            else "exec" +-+ runuserCmd
+            case switchUserArgs switch username of
+              []   -> "exec" +-+ userCmd
+              args -> "exec" +-+ unwords args +-+ userCmd
           execScript =
             (if debugging then ("set -x &&" +-+) else id) $
             if null setupParts

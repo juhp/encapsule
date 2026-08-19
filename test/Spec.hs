@@ -51,14 +51,14 @@ spec = do
           out `shouldContain` "--name encapsule-"
           out `shouldContain` "-proj"
 
-    it "uses runuser -u root with --user root" $
+    it "uses runuser or sudo to switch with --user root" $
       withGenericImage $ \img -> do
         out <- dryrun [img]
-        case debugField out "runuser" of
-          Just "True" -> do
+        case debugField out "switch" of
+          Just "none" -> pendingWith $ img ++ " has no runuser or sudo"
+          _ -> do
             out' <- dryrun ["--user", "root", img]
-            out' `shouldContain` "runuser -u root"
-          _ -> pendingWith $ img ++ " has no runuser"
+            assertUserSwitch out' "root"
 
   describe "ubuntu" $ do
     it "uses ubuntu user and passwd home for UID 1000" $ do
@@ -71,7 +71,7 @@ spec = do
       out <- dryrun [img]
       case debugField out "image user" of
         Just "ubuntu" -> do
-          out `shouldContain` "runuser -u ubuntu"
+          assertUserSwitch out "ubuntu"
           out `shouldNotContain` ("runuser -u " ++ user)
           out `shouldContain` "--workdir /home/ubuntu"
           case debugField out "HOME" of
@@ -113,13 +113,14 @@ spec = do
         Just "(none)" -> do
           debugField out "user" `shouldBe` Just user
           debugField out "passwd home" `shouldBe` Just "(none)"
-          case (debugField out "runuser", debugField out "HOME") of
-            (Just "True", Just hosthome) -> do
-              out `shouldContain` ("runuser -u " ++ user)
+          case (debugField out "switch", debugField out "HOME") of
+            (Just "none", _) ->
+              pendingWith "fedora image has no runuser or sudo"
+            (_, Just hosthome) -> do
+              assertUserSwitch out user
               out `shouldContain` ("-e=HOME=" ++ hosthome)
-            (Just "True", Nothing) ->
+            (_, Nothing) ->
               expectationFailure "fedora debug HOME line"
-            _ -> pendingWith "fedora image has no runuser"
         other ->
           pendingWith $ "image has uid user " ++ fromMaybe "unknown" other
 
@@ -131,12 +132,11 @@ spec = do
           Just "True" -> do
             out `shouldContain` "NOPASSWD:ALL"
             outNo <- dryrun ["--no-sudo", img]
-            outNo `shouldContain` "rm -f /usr/bin/sudo"
             outNo `shouldNotContain` "NOPASSWD:ALL"
           Just "False" -> do
             out `shouldNotContain` "NOPASSWD:ALL"
             outNo <- dryrun ["--no-sudo", img]
-            outNo `shouldNotContain` "rm -f /usr/bin/sudo"
+            outNo `shouldNotContain` "NOPASSWD:ALL"
           other ->
             expectationFailure $
               "debug sudo line for " ++ img ++ " (got: " ++
@@ -209,3 +209,16 @@ withScratchContainer act =
           _ <- readProcessWithExitCode "podman" ["rm", "-f", cid] ""
           return ()
       _ -> pendingWith "podman create produced no id"
+
+assertUserSwitch :: String -> String -> Expectation
+assertUserSwitch out user =
+  case debugField out "switch" of
+    Just "runuser" -> do
+      out `shouldContain` ("runuser -u " ++ user)
+      out `shouldContain` "--user=root"
+    Just "sudo" -> do
+      out `shouldContain` ("sudo -n --preserve-env -u " ++ user)
+      out `shouldContain` "--user=root"
+    Just "none" -> pendingWith "image has no runuser or sudo"
+    other ->
+      expectationFailure $ "debug switch line (got: " ++ show other ++ ")"
