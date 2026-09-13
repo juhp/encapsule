@@ -397,9 +397,12 @@ s +=+ t | lastMay s == Just '-' = s ++ t
         | headMay t == Just '-' = s ++ t
 s +=+ t = s ++ '-' : t
 
--- Probe image without keep-id so /etc/passwd is the image's, not host-injected.
 probeImage :: Bool -> String -> UserID -> Maybe String
-           -> IO (Bool, Bool, Maybe String, Maybe FilePath)
+           -> IO ( Bool -- runuser?
+                 , Bool -- sudo?
+                 , Maybe String -- image passwd username
+                 , Maybe FilePath -- image passwd homedir
+                 )
 probeImage dbg image uid muser = do
   let uidStr = show (fromIntegral uid :: Integer)
       lookupSh = maybe (passwdEntryForUidSh uidStr) passwdEntryForNameSh muser
@@ -410,6 +413,7 @@ probeImage dbg image uid muser = do
         , cmdPresentSh "sudo"
         , lookupSh
         ]
+      -- Probe image's /etc/passwd (without keep-id to avoid host-injection)
       args = ["run", "--rm", "--pull=never", "--entrypoint", "/bin/sh", image, "-c", sh]
   when dbg $ putStrLn $ unwords ("podman" : map shellQuote args)
   (_, out, _) <- cmdFull "podman" args ""
