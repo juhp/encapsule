@@ -248,8 +248,6 @@ runCmd (RunOpts {..}) = do
           setupArgs =
             Setup nosudo noskel (TL.pack username) progname (isNothing mhome && isNothing mImageUser) (TL.pack containerHome) mprojectDir
 
-          -- crun/runc create a missing --workdir on run; keep-id copies it
-          -- into the passwd home. --project wins over home.
           setupParts =
             let setup = setupScript debugging switch haveSudo setupArgs
             in [setup | not (null setup)] ++
@@ -271,8 +269,21 @@ runCmd (RunOpts {..}) = do
       tzMounts <- hostTimezoneMount
       debug $ "timezone:" +-+ show tzMounts
 
-      let workdirPart =
-            ["--workdir", fromMaybe containerHome mprojectDir]
+      -- Only pass --workdir when that path already exists at start:
+      -- crun will not create it, and podman then fails.
+      -- Existing: --project/--home mounts, /root, the image passwd home,
+      -- or a --read-only tmpfs on $HOME. Host $HOME is mkdir'd later.
+      let workdirTarget = fromMaybe containerHome mprojectDir
+          workdirReady =
+            isJust mprojectDir
+            || isJust mhome
+            || stayAsRoot
+            || isJust mPasswdHome
+            || (readonly && isNothing mtemphome)
+          workdirPart =
+            if workdirReady
+            then ["--workdir", workdirTarget]
+            else []
           args = "run" :
                  [ "--rm" | not keep] ++
                  [ "-it",
