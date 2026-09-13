@@ -89,5 +89,5 @@ setupScript dbg switch haveSudo (Setup {..}) =
         in case map T.pack $ switchUserArgs switch (T.unpack username) of
              prog:args -> runHide prog $ args ++ "cp" : cpArgs
              [] -> return ()
-      when (isNothing mprojectDir) $
-        runHide "cd" [homedir | not createhome]
+      when (isNothing mprojectDir && createhome) $
+       runHide "cd" [homedir]
