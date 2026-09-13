@@ -10,7 +10,7 @@ where
 
 import Control.Monad (unless, when)
 import Data.Maybe (fromMaybe, isNothing)
-import SimpleCmd (cmd_, cmdFull)
+import SimpleCmd (cmd, cmd_, cmdFull)
 import System.Directory (canonicalizePath, getHomeDirectory)
 import System.Exit (exitWith)
 import System.FilePath (isAbsolute)
@@ -26,11 +26,20 @@ enterContainer dryrun debug running container command = do
     putStr "start "
     cmd_ "podman" ["start", container]
   (username, mPasswdHome) <- lookupContainerUser container
+  wd <- containerWorkdir container
   let userCmd = if null command then ["bash"] else command
       homeDir = fromMaybe hostHome mPasswdHome
+      -- If inspect reports "/" then --workdir was omitted at create
+      -- (host $HOME was not in the image), then fallback to $HOME
+      workdir =
+        case wd of
+          "" -> homeDir
+          "/" -> homeDir
+          d -> d
       homeEnv =
         if isNothing mPasswdHome then ["env", "HOME=" ++ homeDir] else []
-      execArgs = ["exec", "-it", "--user", username, container]
+      execArgs = ["exec", "-it", "--user", username,
+                  "--workdir", workdir, container]
                  ++ homeEnv ++ userCmd
   when (dryrun || debug) $
     putStrLn $ unwords ("podman" : map shellQuote execArgs)
@@ -72,3 +81,8 @@ lookupContainerUser container = do
     (n:h:_) | not (null n) -> return (n, usablePasswdHome h)
     (n:_) | not (null n) -> return (n, Nothing)
     _ -> return (hostName, Nothing)
+
+containerWorkdir :: String -> IO String
+containerWorkdir container =
+  cmd "podman"
+  ["container", "inspect", "-f", "{{.Config.WorkingDir}}", container]

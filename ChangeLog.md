@@ -3,6 +3,7 @@
 ## 0.5 (2026-08-15)
 - `run`,`create`: `--passwd-entry` so keep-id does not set home to `/`
 - `run`,`create`: fall back to `sudo -u` when `runuser` is missing
+- `enter`: use `$HOME` as workdir when the container workdir is `/`
 - `enter`: use `podman exec --user` instead of `runuser`
 - `commit`: add `--name` to set the encapsule image name
 - `commit`: replaces `refresh` with simpler logic
