@@ -278,6 +278,8 @@ Another somewhat related project is [podenv](https://github.com/podenv/podenv), 
 
 For stronger sandboxing and isolation, specially network, consider using [OpenShell](https://github.com/NVIDIA/OpenShell/). At some point this project might move to wrapping or supporting openshell possibly.
 
+There is also [litterbox](https://github.com/Gerharddc/litterbox) which has quite a lot of features and is also somewhat opinionated, though for example like openshell it also supports landlock confinement.
+
 ## Disclaimer
 The simple isolation provided is limited best effort and
 comes with no (security) warranty.
