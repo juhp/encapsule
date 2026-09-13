@@ -245,8 +245,10 @@ runCmd (RunOpts {..}) = do
               (if null envParts then id else (("env" +-+ unwords envParts) +-+)) $
               unwords $ map shellQuote userCmdParts
 
+          -- mkdir+chown when not bind-mounting --home. A passwd home may
+          -- already exist but not be writable (committed toolbox image).
           setupArgs =
-            Setup nosudo noskel (TL.pack username) progname (isNothing mhome && isNothing mImageUser) (TL.pack containerHome) mprojectDir
+            Setup nosudo noskel (TL.pack username) progname (isNothing mhome) (TL.pack containerHome) mprojectDir
 
           setupParts =
             let setup = setupScript debugging switch haveSudo setupArgs
