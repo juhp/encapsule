@@ -53,7 +53,7 @@ Available commands:
   backup                   Create a tarball backup of a directory
   commit                   Commit an encapsule image from a container
   create                   Create an encapsule container
-  enter                    Connect to a encapsule container
+  enter                    Connect to an encapsule container
   run                      Run a temporary encapsule container
 ```
 
@@ -113,6 +113,11 @@ Available options:
 
 ### `enter` command
 `enter` is used to join an existing (typically running) encapsule container.
+An optional command can be given, as with `run`:
+
+```bash
+$ encapsule enter my-toolbox -- tmux
+```
 
 ### `commit` command
 `commit` saves a container as an encapsule image (`encapsule-CONTAINER` by default).

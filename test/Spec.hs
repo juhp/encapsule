@@ -174,6 +174,11 @@ spec = do
               "debug sudo line for " ++ img ++ " (got: " ++
               show other ++ ")"
 
+  describe "enter" $ do
+    it "offers an optional command" $ do
+      out <- encapsule ["enter", "--help"]
+      out `shouldContain` "[--] CMD"
+
   describe "commit" $ do
     it "offers --name" $ do
       out <- encapsule ["commit", "--help"]

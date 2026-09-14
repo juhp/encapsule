@@ -53,13 +53,14 @@ main = do
       <*> strArg "TOOLBOX"
     , Subcommand "create" "Create an encapsule container" $
       runCmd <$> runOpts True False
-    , Subcommand "enter" "Connect to a encapsule container" $
+    , Subcommand "enter" "Connect to an encapsule container" $
       enterCmd
       <$> dryrunOpt
       <*> debugOpt
       <*> pure True
       <*> optional (strArg "TOOLBOX")
       <*> optional projectNameOpt
+      <*> many (strArg "[--] CMD")
     , Subcommand "run" "Run a temporary encapsule container" $
       runCmd <$> runOpts False True
     ]
@@ -155,8 +156,9 @@ stopCmd name mprojectname = do
       cmd_ "podman" ["stop", containerName]
     else warning $ "container" +-+ containerName +-+ "not found"
 
-enterCmd :: Bool -> Bool -> Bool -> Maybe String -> Maybe ProjectName -> IO ()
-enterCmd dryrun debug running mbase mprojectname = do
+enterCmd :: Bool -> Bool -> Bool -> Maybe String -> Maybe ProjectName
+         -> [String] -> IO ()
+enterCmd dryrun debug running mbase mprojectname command = do
   regexp <-
     case mprojectname of
       Nothing -> return $ progname +=+ fromMaybe "" mbase
@@ -173,12 +175,12 @@ enterCmd dryrun debug running mbase mprojectname = do
     [] ->
       if running
       then do
-        enterCmd dryrun debug False mbase mprojectname
+        enterCmd dryrun debug False mbase mprojectname command
       else error' "encapsule container not found"
     [c] -> do
       unless running $
         warning "no running encapsule container found"
-      enterContainer dryrun debug True c []
+      enterContainer dryrun debug True c command
     _ -> error' $ "multiple" +-+ (if running then  "running" else "") +-+ "containers match:\n" ++ unlines ps
 
 -- image management

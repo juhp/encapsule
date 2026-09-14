@@ -1,5 +1,8 @@
 # encapsule releases
 
+## 0.5.1
+- `enter`: allow an optional command like `run` (`enter TOOLBOX -- tmux`)
+
 ## 0.5 (2026-09-14)
 - `run`,`create`: now always act on a container image
 - `run`,`create`: set `--workdir` only when the path exists at start
