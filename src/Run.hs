@@ -272,6 +272,12 @@ runCmd (RunOpts {..}) = do
       mounts <- mapM (addSelinuxLabel hostHome containerHome) volumes
       tzMounts <- hostTimezoneMount
       debug $ "timezone:" +-+ show tzMounts
+      -- C.UTF-8 is in base images; host LANG (e.g. en_US.UTF-8) often is not.
+      -- -e LANG=C or another locale overrides.
+      let langPart =
+            let userLang =
+                  any (\e -> e == "LANG" || "LANG=" `isPrefixOf` e) envVars
+            in if userLang then [] else langEnvArgs
 
       -- Only pass --workdir when that path already exists at start:
       -- crun will not create it, and podman then fails.
@@ -296,6 +302,7 @@ runCmd (RunOpts {..}) = do
                    "--hostname", hostnameFromName container,
                    "-e", "TERM",
                    "-e", "COLORTERM"]
+                ++ langPart
                 ++ ["-e=HOME=" ++ containerHome | overrideHome]
                 -- keep-id copies --workdir into the passwd home, defaulting
                 -- to "/" ; set the real home when the image has no passwd dir

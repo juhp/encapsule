@@ -13,6 +13,7 @@
 - `rmi`: fix --dryrun (0.4.1 logic regression)
 - `backup` now excludes local git ignored files
 - bind-mount `/etc/localtime`
+- export `LANG=C.UTF-8` (override with `-e LANG=C` or another locale)
 - check first if runuser and sudo are in the container image
 - use image passwd user with the same UID as the host (e.g. support ubuntu)
 - container `$HOME` follows the image passwd home when it is a real directory; `--home` mounts there

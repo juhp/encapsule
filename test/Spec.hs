@@ -23,11 +23,13 @@ main = hspec spec
 spec :: Spec
 spec = do
   describe "dryrun" $ do
-    it "prints podman run with keep-id" $
+    it "podman run has keep-id, TERM & LANG" $
       withGenericImage $ \img -> do
         out <- dryrun [img]
         out `shouldContain` "podman run"
         out `shouldContain` "--userns=keep-id"
+        out `shouldContain` "-e TERM"
+        out `shouldContain` "-e LANG=C.UTF-8"
 
     it "applies --name" $
       withGenericImage $ \img -> do

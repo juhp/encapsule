@@ -5,6 +5,7 @@ module Enter (
   passwdEntryForUidSh,
   passwdEntryForNameSh,
   usablePasswdHome,
+  langEnvArgs,
   )
 where
 
@@ -40,7 +41,7 @@ enterContainer dryrun debug running container command = do
         if isNothing mPasswdHome then ["env", "HOME=" ++ homeDir] else []
       execArgs = ["exec", "-it", "--user", username,
                   "--workdir", workdir, container]
-                 ++ homeEnv ++ userCmd
+                 ++ langEnvArgs ++ homeEnv ++ userCmd
   when (dryrun || debug) $
     putStrLn $ unwords ("podman" : map shellQuote execArgs)
   unless dryrun $ do
@@ -86,3 +87,8 @@ containerWorkdir :: String -> IO String
 containerWorkdir container =
   cmd "podman"
   ["container", "inspect", "-f", "{{.Config.WorkingDir}}", container]
+
+-- Base images typically only ship C.UTF-8 (plus C/POSIX). Override with
+-- -e LANG=C or -e LANG=en_US.UTF-8 if the image has that locale.
+langEnvArgs :: [String]
+langEnvArgs = ["-e", "LANG=C.UTF-8"]
