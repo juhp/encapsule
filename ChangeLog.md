@@ -9,6 +9,7 @@
 - `commit`: add `--name` to set the encapsule image name
 - `commit`: replaces `refresh` with simpler logic
 - `create`,`run`: now always act on a container image
+- `rmi`: fix --dryrun (0.4.1 logic regression)
 - bind-mount `/etc/localtime`
 - check first if runuser and sudo are in the container image
 - use image passwd user with the same UID as the host (e.g. support ubuntu)

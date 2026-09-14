@@ -132,10 +132,16 @@ removeCmd toolbox mprojectname = do
       cmd_ "podman" ["rm", containerName]
     else warning $ "container" +-+ containerName +-+ "not found"
 
+-- FIXME check image exists?
 removeImageCmd :: Bool -> String -> IO ()
 removeImageCmd dryrun name =
-  when dryrun $
-  removeImage (progname +=+ name)
+  let image = progname +=+ name in
+    if dryrun
+    then putStrLn $ "would rmi" +-+ image
+    else do
+      needPodman
+      putStr "rmi "
+      cmd_ "podman" ["rmi", image]
 
 -- FIXME dryrun
 stopCmd :: String -> Maybe ProjectName -> IO ()
@@ -195,17 +201,3 @@ commitCmd dryrun mname toolbox = do
     else do
       putStr "writing image "
       cmd_ "buildah" buildah_args
-
-removeImage :: String -> IO ()
-removeImage image = do
-  putStr "rmi "
-  cmd_ "podman" ["rmi", image]
-
-
--- path and env expansion
-
--- container naming
-
-
-
--- utilities
