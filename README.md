@@ -75,7 +75,7 @@ Usage: encapsule run IMAGE [-v|--volume HOST:CONTAINER[:opts]]
                      [(-p|--project DIR[:opts]) [--backup-project]]
                      [-n|--name NAME] [--readonly] [--no-network] [--no-sudo]
                      [--no-skel] [--podman-opt OPTION] [--debug] [--dryrun]
-                     [CMD]
+                     [[--] CMD]
 
   Run a temporary encapsule container
 

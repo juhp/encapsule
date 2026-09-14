@@ -103,7 +103,7 @@ main = do
       <*> many (strOptionLongWith "podman-opt" "OPTION" "Pass an option directly to podman")
       <*> debugOpt
       <*> dryrunOpt
-      <*> many (strArg "CMD")
+      <*> many (strArg "[--] CMD")
 
 listCmd :: IO ()
 listCmd = do
