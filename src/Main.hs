@@ -107,6 +107,7 @@ main = do
 
 listCmd :: IO ()
 listCmd = do
+  needPodman
   cmd_ "podman" ["images",
                  "--filter", "reference=" ++ progname ++ "-*",
                  "--format", "{{.Repository}}:{{.Tag}}  {{.Size}}  {{.Created}}"]
@@ -118,6 +119,7 @@ listCmd = do
 removeCmd :: String -> Maybe ProjectName -> IO ()
 removeCmd toolbox mprojectname = do
   containerName <- mkContainerName toolbox mprojectname
+  needPodman
   exists <- cmdBool "podman" ["container", "exists", containerName]
   if exists
     then do
@@ -139,6 +141,7 @@ removeImageCmd dryrun name =
 stopCmd :: String -> Maybe ProjectName -> IO ()
 stopCmd name mprojectname = do
   containerName <- mkContainerName name mprojectname
+  needPodman
   exists <- cmdBool "podman" ["container", "exists", containerName]
   if exists
     then do
@@ -155,6 +158,7 @@ enterCmd dryrun debug running mbase mprojectname = do
       Just (Project p) -> do
         projectDir <- resolveProject p
         return $ progname ++ '-' : fromMaybe ".*" mbase ++ '-' : workProjectName projectDir
+  needPodman
   ps <- cmdLines "podman" $ "ps" :
         ["-a" | not running] ++
         ["--filter", "name=" ++ '^' : regexp,
@@ -175,6 +179,7 @@ enterCmd dryrun debug running mbase mprojectname = do
 
 commitCmd :: Bool -> Maybe String -> String -> IO ()
 commitCmd dryrun mname toolbox = do
+  needPodman
   containerExists <- cmdBool "podman" ["container", "exists", toolbox]
   unless containerExists $
     error' $ "container '" ++ toolbox ++ "' not found"

@@ -11,6 +11,7 @@ module Run (
   mkContainerName,
   resolveProject,
   workProjectName,
+  needPodman
   )
 where
 
@@ -78,6 +79,7 @@ runCmd (RunOpts {..}) = do
     mkContainerName toolbox $
       maybe (Project <$> mprojectPath) (Just . Name) mname
   debug containerName
+  needPodman
   exists <- cmdBool "podman" ["container", "exists", containerName]
   when (keep && not unique && exists) $
     error' $ "container" +-+ containerName +-+ "already exists"
@@ -582,3 +584,6 @@ ownedBySelf path = do
   uid <- getEffectiveUserID
   st <- getFileStatus path
   return $ fileOwner st == uid
+
+needPodman :: IO ()
+needPodman = needProgram "podman"
