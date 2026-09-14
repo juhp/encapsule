@@ -14,7 +14,7 @@ selecting user-configured "capabilities" that the encapsule container can access
 Most encapsule subcommands act on an image.
 - If you wish to use an existing toolbox container as a starting point you can `commit` it to an "encapsule" container image.
   - Note your original toolbox container is left untouched: its system configuration and fs are just used as the base fs for the encapsule image (though its original bind mounts including $HOME will be not be included by default).
-- Alternatively you can roll your own image or run a vanilla image like fedora:latest, fedora-toolbox:44 or `ubuntu:latest`, etc.
+- Alternatively you can roll your own image or run a vanilla image like `fedora` (`fedora:latest`), `fedora-toolbox:44` or `ubuntu:latest`, etc.
   - However toolbox images or containers are recommended because they include `sudo` and `runuser`, but as such it doesn't have to be a toolbox container.
   - For example since the fedora base container does not include runuser it runs as `--user root` by default (since as of 0.5 util-linux is no longer
 installed by default into encapsule containers: this may be addressed in future).
@@ -129,7 +129,7 @@ Use `-n/--name NAME` for a custom image name (`encapsule-NAME`, or `^NAME` to sk
 ~/myproj$ encapsule create ubuntu -p .
 
 # Bind mount a volume
-$ encapsule run fedora:latest -v ~/data:/data
+$ encapsule run fedora -v ~/data:/data
 
 # create a custom "encapsule-fedora-toolbox-45" image from a toolbox container
 $ encapsule commit fedora-toolbox-45
@@ -143,11 +143,14 @@ $ encapsule commit --name dev fedora-toolbox-45
 # Use capabilities from one's config
 $ encapsule create dev --cap ssh --cap git
 
+# Remove encapsule container
+$ encapsule rm dev
+
+# create "encapsule-my-toolbox" image
+$ encapsule commit fedora-toolbox-45 --name my-toolbox
+
 # Read-only container filesystem
 $ encapsule run my-toolbox --readonly
-
-# Remove encapsule container
-$ encapsule rm my-toolbox
 
 # Set environment variables and prepend to PATH
 $ encapsule run my-toolbox -e MY_VAR=hello -e LANG --path ~/.local/bin
@@ -162,7 +165,7 @@ $ encapsule run fedora-toolbox:45 -p proj --init "dnf install -y gcc make"
 $ encapsule run --dryrun my-toolbox
 ```
 
-There is a `rmi` command to remove an encapsule images no longer needed.
+There is a `rmi` command to remove an encapsule image no longer needed.
 
 ## Capabilities
 
@@ -199,14 +202,14 @@ If the host and container paths are the same, you can use the shorthand
 
 ## How it works
 
-1. Commits the named toolbox container to an encapsule image using `buildah commit`.
-2. Runs `podman run` with `--userns=keep-id` so you are your own user, not root
-3. Drops from root with `runuser` if present, otherwise `sudo -u`
+0. Commits the named toolbox container to an encapsule image using `buildah commit`.
+1. Runs `podman run` with `--userns=keep-id` so you are your own user, not root
+2. Drops from root with `runuser` if present, otherwise `sudo -u`
    (`enter` uses `podman exec --user`)
-4. Sets up passwordless `sudo` inside the encapsule container (unless `--no-sudo`)
-5. Bind mounts get SELinux `:z` (shared) labels automatically,
+3. Sets up passwordless `sudo` inside the encapsule container (unless `--no-sudo`)
+4. Bind mounts get SELinux `:z` (shared) labels automatically,
    so multiple containers can safely access the same directories
-6. When `-p/--project DIR` is used (and `--name` isn't), the container name
+5. When `-p/--project DIR` is used (and `--name` isn't), the container name
    includes the project directory's name (e.g. `encapsule-mytoolbox-myproject`),
    so you can run the same toolbox against different projects at the same time
    in separate encapsule containers. Though for different project paths with
@@ -241,7 +244,7 @@ or `stack install encapsule`.
 
 `cabal test` runs an hspec suite that drives the `encapsule` CLI
 (`--dryrun` against local images, plus an optional live `run`).
-It needs podman, skips (pending) missing images, and does not pull.
+It needs podman and skips missing images.
 
 Default images are `ubuntu:latest` and `fedora:latest`.
 Override with `ENCAPSULE_TEST_UBUNTU` and `ENCAPSULE_TEST_FEDORA`.
@@ -253,9 +256,8 @@ cabal test
 ```
 
 `cabal bench` times `encapsule run --dryrun` and a short `run -- true`
-against a local image (same env vars as tests). Skips if podman or the
-image is missing. It measures wall-clock time (podman wait), not
-Haskell CPU time. To log timings:
+against a local image (same env vars as tests). It requires podman and an
+image. It measures wall-clock time. To log timings:
 
 ```bash
 cabal bench --benchmark-options '--csv /tmp/encapsule-bench.csv --time-limit 3'
@@ -265,8 +267,8 @@ cabal bench --benchmark-options '--csv /tmp/encapsule-bench.csv --time-limit 3'
 ## Runtime Requirements
 
 - [podman](https://podman.io/) and [buildah](https://buildah.io/)
-- An existing (toolbox) container (created with `toolbox create`) or image.
-- Alternatively some other non-toolbox container/images may also work.
+- An existing (toolbox) container (created with `toolbox create`) or an image.
+- Alternatively other non-toolbox container/images can also work.
 
 ## Related projects
 
@@ -278,7 +280,7 @@ Another somewhat related project is [podenv](https://github.com/podenv/podenv), 
 
 For stronger sandboxing and isolation, specially network, consider using [OpenShell](https://github.com/NVIDIA/OpenShell/). At some point this project might move to wrapping or supporting openshell possibly.
 
-There is also [litterbox](https://github.com/Gerharddc/litterbox) which has quite a lot of features and is also somewhat opinionated, though for example like openshell it also supports landlock confinement.
+There is also [litterbox](https://github.com/Gerharddc/litterbox) which has quite a lot of features and though somewhat opinionated, for example like openshell also supports landlock confinement.
 
 ## Disclaimer
 The simple isolation provided is limited best effort and
