@@ -2,7 +2,7 @@
 
 module Main (main) where
 
-import Control.Exception (IOException, evaluate, try)
+import Control.Exception (IOException, try)
 import Data.IORef (atomicModifyIORef', newIORef)
 import Data.Maybe (fromMaybe)
 import System.Environment (lookupEnv)
@@ -38,7 +38,7 @@ runEnc args = do
   exe <- fromMaybe "encapsule" <$> lookupEnv "ENCAPSULE"
   (code, out, err) <- readProcessWithExitCode exe args ""
   case code of
-    ExitSuccess -> evaluate ()
+    ExitSuccess -> return ()
     ExitFailure n ->
       fail $ "encapsule failed (" ++ show n ++ "): " ++ out ++ err
 
