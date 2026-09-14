@@ -1,15 +1,17 @@
 # encapsule releases
 
-## 0.5 (2026-08-15)
+## 0.5 (2026-09-14)
+- `run`,`create`: now always act on a container image
 - `run`,`create`: set `--workdir` only when the path exists at start
 - `run`,`create`: `--passwd-entry` so keep-id does not set home to `/`
 - `run`,`create`: fall back to `sudo -u` when `runuser` is missing
+- `run --debug` now also outputs podman command like `--dryrun`
 - `enter`: use `$HOME` as workdir when the container workdir is `/`
 - `enter`: use `podman exec --user` instead of `runuser`
 - `commit`: add `--name` to set the encapsule image name
 - `commit`: replaces `refresh` with simpler logic
-- `create`,`run`: now always act on a container image
 - `rmi`: fix --dryrun (0.4.1 logic regression)
+- `backup` now excludes local git ignored files
 - bind-mount `/etc/localtime`
 - check first if runuser and sudo are in the container image
 - use image passwd user with the same UID as the host (e.g. support ubuntu)
@@ -18,9 +20,7 @@
 - now also setup home if no runuser
 - `--no-sudo` no longer attempts to remove sudo
 - add `--user` option to override the container user
-- `run --debug` now also outputs podman command like `--dryrun`
 - dryrun/debug colors podman flag names in cyan (honors `NO_COLOR`)
-- `backup` now excludes local git ignored files
 - add hspec tests (`cabal test`; needs podman and local images)
 - add tasty-bench suite (`cabal bench`; needs podman and a local image)
 
