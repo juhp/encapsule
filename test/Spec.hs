@@ -103,6 +103,17 @@ spec = do
           Just h -> out `shouldNotContain` (homeAbs ++ ":" ++ h)
           Nothing -> return ()
 
+    it "live $HOME is /home/ubuntu" $ do
+      img <- ubuntuImg
+      requireImage img
+      uid <- hostUid
+      unless (uid == "1000") $
+        pendingWith $ "host uid is " ++ uid ++ ", not 1000"
+      out0 <- dryrun [img]
+      unless (debugField out0 "image user" == Just "ubuntu") $
+        pendingWith "image user is not ubuntu"
+      assertLiveHome "ubuntu" img "/home/ubuntu"
+
   describe "fedora" $ do
     it "falls back to host user and HOME when passwd has no UID" $ do
       img <- fedoraImg
@@ -124,6 +135,22 @@ spec = do
               out `shouldContain` (":" ++ hosthome ++ ":/bin/sh")
             (_, Nothing) ->
               expectationFailure "fedora debug HOME line"
+        other ->
+          pendingWith $ "image has uid user " ++ fromMaybe "unknown" other
+
+    it "live $HOME is the host home" $ do
+      img <- fedoraImg
+      requireImage img
+      out0 <- dryrun [img]
+      case debugField out0 "image user" of
+        Just "(none)" ->
+          case (debugField out0 "switch", debugField out0 "container home") of
+            (Just "none", _) ->
+              pendingWith "fedora image has no runuser or sudo"
+            (_, Just home) ->
+              assertLiveHome "fedora" img home
+            (_, Nothing) ->
+              expectationFailure "fedora debug container home line"
         other ->
           pendingWith $ "image has uid user " ++ fromMaybe "unknown" other
 
@@ -172,10 +199,7 @@ spec = do
   describe "live" $ do
     it "runs id -un in the container" $
       withGenericImage $ \img -> do
-        tty <- hasTTY
-        forced <- liveEnabled
-        unless (tty || forced) $
-          pendingWith "not a TTY (set ENCAPSULE_LIVE=1 to force)"
+        requireLive
         pid <- getProcessID
         let name = "^encap-live-" ++ show pid
         out <- encapsule
@@ -212,6 +236,24 @@ withScratchContainer act =
           _ <- readProcessWithExitCode "podman" ["rm", "-f", cid] ""
           return ()
       _ -> pendingWith "podman create produced no id"
+
+assertLiveHome :: String -> String -> String -> IO ()
+assertLiveHome tag img expected = do
+  requireLive
+  pid <- getProcessID
+  let name = "^encap-home-" ++ tag ++ "-" ++ show pid
+  out <- encapsuleChecked
+    ["run", "--name", name, img, "--",
+     "sh", "-c", "printf '%s\\n%s\\n' \"$HOME\" \"$(pwd)\""]
+  let got = commandOutputLines out
+      ttyWarn = "not a TTY" `isInfixOf` out
+  case got of
+    []
+      | ttyWarn -> pendingWith "not a TTY"
+      | otherwise -> expectationFailure "live run produced no command output"
+    _ -> do
+      got `shouldContain` [expected]
+      last got `shouldBe` expected
 
 assertUserSwitch :: String -> String -> Expectation
 assertUserSwitch out user =

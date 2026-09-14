@@ -2,11 +2,13 @@
 
 module EncapsuleTest (
   encapsule,
+  encapsuleChecked,
   dryrun,
   debugField,
   commandOutputLines,
   hasTTY,
   liveEnabled,
+  requireLive,
   ubuntuImg,
   fedoraImg,
   hostUid,
@@ -33,6 +35,17 @@ encapsule args = do
   exe <- fromMaybe "encapsule" <$> lookupEnv "ENCAPSULE"
   (_, out, err) <- readProcessWithExitCode exe args ""
   return $ out ++ err
+
+-- | Like 'encapsule', but fail if the process exits non-zero.
+encapsuleChecked :: [String] -> IO String
+encapsuleChecked args = do
+  exe <- fromMaybe "encapsule" <$> lookupEnv "ENCAPSULE"
+  (code, out, err) <- readProcessWithExitCode exe args ""
+  let combined = out ++ err
+  case code of
+    ExitSuccess -> return combined
+    ExitFailure n ->
+      fail $ "encapsule failed (" ++ show n ++ "): " ++ combined
 
 dryrun :: [String] -> IO String
 dryrun args = encapsule $ ["run", "--dryrun", "--debug", "--no-skel"] ++ args
@@ -92,6 +105,13 @@ liveEnabled :: IO Bool
 liveEnabled = do
   env <- lookupEnv "ENCAPSULE_LIVE"
   return $ env == Just "1"
+
+requireLive :: IO ()
+requireLive = do
+  tty <- hasTTY
+  forced <- liveEnabled
+  unless (tty || forced) $
+    pendingWith "not a TTY (set ENCAPSULE_LIVE=1 to force)"
 
 ubuntuImg :: IO String
 ubuntuImg = fromMaybe "ubuntu:latest" <$> lookupEnv "ENCAPSULE_TEST_UBUNTU"
