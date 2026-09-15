@@ -39,9 +39,10 @@ enterContainer dryrun debug running container command = do
           d -> d
       homeEnv =
         if isNothing mPasswdHome then ["env", "HOME=" ++ homeDir] else []
-      execArgs = ["exec", "-it", "--user", username,
-                  "--workdir", workdir, container]
-                 ++ langEnvArgs ++ homeEnv ++ userCmd
+      execArgs = ["exec", "-it", "--user", username]
+                 ++ langEnvArgs
+                 ++ ["--workdir", workdir, container]
+                 ++ homeEnv ++ userCmd
   when (dryrun || debug) $
     putStrLn $ unwords ("podman" : map shellQuote execArgs)
   unless dryrun $ do

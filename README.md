@@ -27,7 +27,7 @@ There is no need to use this prefix normally - it is implicit.
 `$ encapsule --version`
 
 ```
-0.5
+0.5.1
 ```
 
 `$ encapsule --help`

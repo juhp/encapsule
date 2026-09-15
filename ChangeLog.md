@@ -1,6 +1,7 @@
 # encapsule releases
 
-## 0.5.1
+## 0.5.1 (2026-09-15)
+- `enter` bugfix: -e=LANG must precede container
 - `enter`: allow an optional command like `run` (`enter TOOLBOX -- tmux`)
 
 ## 0.5 (2026-09-14)
