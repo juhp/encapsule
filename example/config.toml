@@ -24,3 +24,7 @@ path = ["~/.cargo/bin"]
 
 [capabilities.isolation]
 volumes = ["~/isolation:~:rw"]
+
+[capabilities.ssh-agent]
+env = ["XDG_RUNTIME_DIR"]
+volumes = ["$XDG_RUNTIME_DIR/ssh-agent.sock"]
