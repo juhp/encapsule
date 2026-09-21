@@ -1,5 +1,7 @@
 # encapsule releases
 
+- `commit`: use podman instead of buildah
+
 ## 0.5.1 (2026-09-15)
 - `enter` bugfix: -e=LANG must precede container
 - `enter`: allow an optional command like `run` (`enter TOOLBOX -- tmux`)

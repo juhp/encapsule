@@ -197,9 +197,7 @@ commitCmd dryrun mname toolbox = do
   imageExists <- cmdBool "podman" ["image", "exists", image]
   unless imageExists $
     putStrLn $ "creating new image:" +-+ image
-  let buildah_args = ["commit", "--disable-compression", toolbox, image]
-  if dryrun
-    then cmdN "buildah" buildah_args
-    else do
-      putStr "writing image "
-      cmd_ "buildah" buildah_args
+  let commit_args = ["commit", toolbox, image]
+  unless dryrun $
+    putStr "writing image "
+  (if dryrun then cmdN else cmd_) "podman" commit_args
