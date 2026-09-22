@@ -103,7 +103,7 @@ main = do
       <*> pure keep
       <*> switchLongWith "readonly" "Make the encapsule container filesystem read-only"
       <*> switchLongWith "no-network" "Disable network access"
-      <*> switchLongWith "no-sudo" "Skip passwordless sudo setup"
+      <*> switchLongWith "sudo" "Set up passwordless sudo for the container user"
       <*> switchLongWith "no-skel" "Don't copy /etc/skel into an empty home"
       <*> pure unique
       <*> many (strOptionLongWith "podman-opt" "OPTION" "Pass an option directly to podman")

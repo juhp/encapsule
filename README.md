@@ -73,7 +73,7 @@ Usage: encapsule run IMAGE [-v|--volume HOST:CONTAINER[:opts]]
                      [--cap NAME] [--pull] [--root | --user USER]
                      [(-H|--home DIR[:opts]) [--backup-home]]
                      [(-p|--project DIR[:opts]) [--backup-project]]
-                     [-n|--name NAME] [--readonly] [--no-network] [--no-sudo]
+                     [-n|--name NAME] [--readonly] [--no-network] [--sudo]
                      [--no-skel] [--podman-opt OPTION] [--debug] [--dryrun]
                      [[--] CMD]
 
@@ -101,7 +101,7 @@ Available options:
                            skip 'encapsule-' prefix)
   --readonly               Make the encapsule container filesystem read-only
   --no-network             Disable network access
-  --no-sudo                Skip passwordless sudo setup
+  --sudo                   Set up passwordless sudo for the container user
   --no-skel                Don't copy /etc/skel into an empty home
   --podman-opt OPTION      Pass an option directly to podman
   --debug                  Show debug output
@@ -217,9 +217,11 @@ If the host and container paths are the same, you can use the shorthand
 
 0. Commits the named toolbox container to an encapsule image using `buildah commit`.
 1. Runs `podman run` with `--userns=keep-id` so you are your own user, not root
-2. Drops from root with `runuser` if present, otherwise `sudo -u`
-   (`enter` uses `podman exec --user`)
-3. Sets up passwordless `sudo` inside the encapsule container (unless `--no-sudo`)
+2. Drops from root with `runuser` if present, otherwise `sudo -u`. Explicit
+   `--user root`/`--root` runs directly as root (`enter` uses
+   `podman exec --user`)
+3. Does not grant privilege escalation by default. `--sudo` opts into a
+   passwordless sudoers entry when the image contains `sudo`
 4. Bind mounts get SELinux `:z` (shared) labels automatically,
    so multiple containers can safely access the same directories
 5. When `-p/--project DIR` is used (and `--name` isn't), the container name

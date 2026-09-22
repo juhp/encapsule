@@ -61,7 +61,7 @@ data RunOpts = RunOpts
   , keep :: Bool
   , readonly :: Bool
   , nonetwork :: Bool
-  , nosudo :: Bool
+  , sudoEnable :: Bool
   , noskel :: Bool
   , unique :: Bool
   , podmanopts :: [String]
@@ -123,14 +123,14 @@ runCmd (RunOpts {..}) = do
             , not keep
             , not readonly
             , not nonetwork
-            , not nosudo
+            , not sudoEnable
             , not noskel
             , null podmanopts
             ]
       unless noopts $
         error' "cannot give options for an existing container!"
       warning "Entering existing container"
-      enterContainer dryrun debugging True container command
+      enterContainer dryrun debugging True Nothing container command
     else do
       when backupHome $
         whenJust mhomeDir $ backupCmd dryrun False Nothing
@@ -184,16 +184,20 @@ runCmd (RunOpts {..}) = do
           Nothing -> maybe getEffectiveUserName return mImageUser
       debug $ "user:" +-+ username
 
-      let switch = chooseSwitchUser haveRunuser haveSudo
+      let mswitch =
+            if username == "root"
+            then Nothing
+            else chooseSwitchUser haveRunuser haveSudo
           startAsRoot =
-            canSwitchUser switch
+            username == "root"
+            || isJust mswitch
             || isNothing mhome && isNothing muser && isNothing mImageUser
-          stayAsRoot = startAsRoot && not (canSwitchUser switch)
+          stayAsRoot = startAsRoot && isNothing mswitch
           (containerHome, overrideHome) =
             if stayAsRoot
             then ("/root", False)
             else (fromMaybe hostHome mPasswdHome, isNothing mPasswdHome)
-      debug $ "switch:" +-+ switchLabel switch
+      debug $ "switch:" +-+ maybe "none" switchLabel mswitch
       debug $ "container home:" +-+ containerHome
 
       homeVol <-
@@ -250,14 +254,14 @@ runCmd (RunOpts {..}) = do
           -- mkdir+chown when not bind-mounting --home. A passwd home may
           -- already exist but not be writable (committed toolbox image).
           setupArgs =
-            Setup nosudo noskel (TL.pack username) progname (isNothing mhome) (TL.pack containerHome) mprojectDir
+            Setup sudoEnable noskel (TL.pack username) progname (isNothing mhome) (TL.pack containerHome) mprojectDir
 
           setupParts =
-            let setup = setupScript debugging switch haveSudo setupArgs
+            let setup = setupScript debugging mswitch haveSudo setupArgs
             in [setup | not (null setup)] ++
                [mkInitSetup allinits | not (null allinits)]
           finalCmd =
-            case switchUserArgs switch username of
+            case maybe [] (switchUserArgs username) mswitch of
               []   -> "exec" +-+ userCmd
               args -> "exec" +-+ unwords args +-+ userCmd
           execScript =

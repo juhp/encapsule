@@ -53,14 +53,23 @@ spec = do
           out `shouldContain` "--name encapsule-"
           out `shouldContain` "-proj"
 
-    it "uses runuser or sudo to switch with --user root" $
+    it "runs directly as root with --user root" $
       withGenericImage $ \img -> do
-        out <- dryrun [img]
-        case debugField out "switch" of
-          Just "none" -> pendingWith $ img ++ " has no runuser or sudo"
-          _ -> do
-            out' <- dryrun ["--user", "root", img]
-            assertUserSwitch out' "root"
+        out <- dryrun ["--user", "root", img]
+        debugField out "user" `shouldBe` Just "root"
+        debugField out "switch" `shouldBe` Just "none"
+        debugField out "container home" `shouldBe` Just "/root"
+        out `shouldContain` "--user=root"
+        out `shouldNotContain` "runuser -u root"
+        out `shouldNotContain` "sudo -n --preserve-env -u root"
+
+    it "treats --root as shorthand for --user root" $
+      withGenericImage $ \img -> do
+        out <- dryrun ["--root", img]
+        debugField out "user" `shouldBe` Just "root"
+        debugField out "switch" `shouldBe` Just "none"
+        debugField out "container home" `shouldBe` Just "/root"
+        out `shouldContain` "--user=root"
 
   describe "ubuntu" $ do
     it "uses ubuntu user and passwd home for UID 1000" $ do
@@ -157,18 +166,17 @@ spec = do
           pendingWith $ "image has uid user " ++ fromMaybe "unknown" other
 
   describe "sudo" $ do
-    it "writes sudoers when sudo is present, skips when not" $
+    it "only writes sudoers when --sudo is given and sudo is present" $
       withGenericImage $ \img -> do
         out <- dryrun [img]
+        out `shouldNotContain` "NOPASSWD:ALL"
         case debugField out "sudo" of
           Just "True" -> do
-            out `shouldContain` "NOPASSWD:ALL"
-            outNo <- dryrun ["--no-sudo", img]
-            outNo `shouldNotContain` "NOPASSWD:ALL"
+            outSudo <- dryrun ["--sudo", img]
+            outSudo `shouldContain` "NOPASSWD:ALL"
           Just "False" -> do
-            out `shouldNotContain` "NOPASSWD:ALL"
-            outNo <- dryrun ["--no-sudo", img]
-            outNo `shouldNotContain` "NOPASSWD:ALL"
+            outSudo <- dryrun ["--sudo", img]
+            outSudo `shouldNotContain` "NOPASSWD:ALL"
           other ->
             expectationFailure $
               "debug sudo line for " ++ img ++ " (got: " ++
@@ -179,6 +187,12 @@ spec = do
       out <- encapsule ["enter", "--help"]
       out `shouldContain` "[--] CMD"
 
+    it "offers explicit user and root selection" $ do
+      out <- encapsule ["enter", "--help"]
+      out `shouldContain` "[--root | --user USER]"
+      out `shouldContain` "--user USER"
+      out `shouldContain` "--root"
+
   describe "commit" $ do
     it "offers --name" $ do
       out <- encapsule ["commit", "--help"]
@@ -187,7 +201,7 @@ spec = do
     it "names the image encapsule-CONTAINER by default" $
       withScratchContainer $ \cname -> do
         out <- encapsule ["commit", "--dryrun", cname]
-        out `shouldContain` "buildah commit"
+        out `shouldContain` "podman commit"
         out `shouldContain` ("encapsule-" ++ cname)
 
     it "applies --name to the encapsule image" $

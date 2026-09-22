@@ -8,7 +8,6 @@
 module Script (
   SwitchUser(..),
   chooseSwitchUser,
-  canSwitchUser,
   switchUserArgs,
   switchLabel,
   setupScript,
@@ -18,37 +17,31 @@ where
 
 import Control.Monad (unless, when)
 import Control.Monad.Shell
-import Data.Maybe (isNothing)
+import Data.Maybe (isJust, isNothing)
 import qualified Data.Text.Lazy as T
 import System.FilePath ((</>))
 import System.Posix.IO
 
 default (T.Text)
 
-data SwitchUser = Runuser | Sudo | None
+data SwitchUser = Runuser | Sudo
 
-chooseSwitchUser :: Bool -> Bool -> SwitchUser
-chooseSwitchUser True _     = Runuser
-chooseSwitchUser False True = Sudo
-chooseSwitchUser _ _        = None
-
-canSwitchUser :: SwitchUser -> Bool
-canSwitchUser None = False
-canSwitchUser _    = True
+chooseSwitchUser :: Bool -> Bool -> Maybe SwitchUser
+chooseSwitchUser True _     = Just Runuser
+chooseSwitchUser False True = Just Sudo
+chooseSwitchUser _ _        = Nothing
 
 -- argv prefix; empty for None
-switchUserArgs :: SwitchUser -> String -> [String]
-switchUserArgs Runuser u = ["runuser", "-u", u, "--"]
-switchUserArgs Sudo    u = ["sudo", "-n", "--preserve-env", "-u", u, "--"]
-switchUserArgs None    _ = []
+switchUserArgs :: String -> SwitchUser -> [String]
+switchUserArgs u Runuser = ["runuser", "-u", u, "--"]
+switchUserArgs u Sudo = ["sudo", "-n", "--preserve-env", "-u", u, "--"]
 
 switchLabel :: SwitchUser -> String
 switchLabel Runuser = "runuser"
 switchLabel Sudo    = "sudo"
-switchLabel None    = "none"
 
 data Setup = Setup
-  { nosudo :: Bool
+  { sudoEnable :: Bool
   , noskel :: Bool
   , username :: T.Text
   , program :: String
@@ -57,8 +50,8 @@ data Setup = Setup
   , mprojectDir :: Maybe FilePath
   }
 
-setupScript :: Bool -> SwitchUser -> Bool -> Setup -> String
-setupScript dbg switch haveSudo (Setup {..}) =
+setupScript :: Bool -> Maybe SwitchUser -> Bool -> Setup -> String
+setupScript dbg mswitch haveSudo (Setup {..}) =
   T.unpack . T.replace "\t" " " . linearScript $
   sudoSetup >> homeSetup
   where
@@ -69,7 +62,7 @@ setupScript dbg switch haveSudo (Setup {..}) =
 
     sudoSetup =
       when haveSudo $
-      unless nosudo $
+      when sudoEnable $
       let sudoers = "/etc/sudoers.d" in
           whenCmd (test $ TDirExists sudoers) $ do
           runHide "echo" [username, "ALL=(ALL) NOPASSWD:ALL"] `redir` (sudoers </> program)
@@ -80,13 +73,13 @@ setupScript dbg switch haveSudo (Setup {..}) =
         runHide "mkdir" ["-p", homedir]
         runHide "chown" [username, homedir]
       unless noskel $
-        when (canSwitchUser switch) $
+        when (isJust mswitch) $
         whenCmd
         (test (TDirExists homedir)
          -&&-
          test (TDirExists (T.pack "/etc/skel"))) $
         let cpArgs = ["-a", "--update=none", "/etc/skel/.", homedir <> "/"]
-        in case map T.pack $ switchUserArgs switch (T.unpack username) of
+        in case map T.pack $ maybe [] (switchUserArgs (T.unpack username)) mswitch of
              prog:args -> runHide prog $ args ++ "cp" : cpArgs
              [] -> return ()
       when (isNothing mprojectDir && createhome) $
