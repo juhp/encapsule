@@ -10,7 +10,7 @@ module Enter (
 where
 
 import Control.Monad (unless, when)
-import Data.Maybe (fromMaybe, isNothing)
+import Data.Maybe (fromMaybe, isJust, isNothing)
 import SimpleCmd (cmd, cmd_, cmdFull)
 import System.Directory (canonicalizePath, getHomeDirectory)
 import System.Exit (exitWith)
@@ -20,13 +20,13 @@ import System.Posix.User (getEffectiveUserID, getEffectiveUserName)
 
 import ShellQuote
 
-enterContainer :: Bool -> Bool -> Bool -> String -> [String] -> IO ()
-enterContainer dryrun debug running container command = do
+enterContainer :: Bool -> Bool -> Bool -> Maybe String -> String -> [String] -> IO ()
+enterContainer dryrun debug running muser container command = do
   hostHome <- getHomeDirectory >>= canonicalizePath
   unless running $ do
     putStr "start "
     cmd_ "podman" ["start", container]
-  (username, mPasswdHome) <- lookupContainerUser container
+  (username, mPasswdHome) <- lookupContainerUser container muser
   wd <- containerWorkdir container
   let userCmd = if null command then ["bash"] else command
       homeDir = fromMaybe hostHome mPasswdHome
@@ -38,7 +38,9 @@ enterContainer dryrun debug running container command = do
           "/" -> homeDir
           d -> d
       homeEnv =
-        if isNothing mPasswdHome then ["env", "HOME=" ++ homeDir] else []
+        if isJust muser || isNothing mPasswdHome
+        then ["env", "HOME=" ++ homeDir]
+        else []
       execArgs = ["exec", "-it", "--user", username]
                  ++ langEnvArgs
                  ++ ["--workdir", workdir, container]
@@ -72,17 +74,17 @@ usablePasswdHome h
   | isAbsolute h = Just h
   | otherwise = Nothing
 
-lookupContainerUser :: String -> IO (String, Maybe FilePath)
-lookupContainerUser container = do
-  hostName <- getEffectiveUserName
+lookupContainerUser :: String -> Maybe String -> IO (String, Maybe FilePath)
+lookupContainerUser container muser = do
+  hostUserName <- getEffectiveUserName
   uid <- getEffectiveUserID
   let uidStr = show (fromIntegral uid :: Integer)
-      sh = passwdEntryForUidSh uidStr
+      sh = maybe (passwdEntryForUidSh uidStr) passwdEntryForNameSh muser
   (_, out, _) <- cmdFull "podman" ["exec", container, "/bin/sh", "-c", sh] ""
   case lines out of
     (n:h:_) | not (null n) -> return (n, usablePasswdHome h)
     (n:_) | not (null n) -> return (n, Nothing)
-    _ -> return (hostName, Nothing)
+    _ -> return (fromMaybe hostUserName muser, Nothing)
 
 containerWorkdir :: String -> IO String
 containerWorkdir container =

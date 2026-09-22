@@ -120,6 +120,13 @@ An optional command can be given, as with `run`:
 $ encapsule enter my-toolbox -- tmux
 ```
 
+By default `enter` uses the user matching the host UID. Use `--root` (or
+`--user root`) when administrative access is needed:
+
+```bash
+$ encapsule enter --root my-toolbox
+```
+
 ### `commit` command
 `commit` saves a container as an encapsule image (`encapsule-CONTAINER` by default).
 Use `-n/--name NAME` for a custom image name (`encapsule-NAME`, or `^NAME` to skip the prefix).

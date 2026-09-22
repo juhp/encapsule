@@ -2,6 +2,7 @@
 
 ## 0.5.2 (2026-09-22)
 - add `--root` as shorthand for `--user root`
+- `enter`: add `--root/--user`
 - `commit`: use podman instead of buildah
 
 ## 0.5.1 (2026-09-15)

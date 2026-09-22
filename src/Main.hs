@@ -60,6 +60,7 @@ main = do
       <*> pure True
       <*> optional (strArg "TOOLBOX")
       <*> optional projectNameOpt
+      <*> optional userNameOpt
       <*> many (strArg "[--] CMD")
     , Subcommand "run" "Run a temporary encapsule container" $
       runCmd <$> runOpts False True
@@ -161,8 +162,9 @@ stopCmd name mprojectname = do
     else warning $ "container" +-+ containerName +-+ "not found"
 
 enterCmd :: Bool -> Bool -> Bool -> Maybe String -> Maybe ProjectName
+         -> Maybe String
          -> [String] -> IO ()
-enterCmd dryrun debug running mbase mprojectname command = do
+enterCmd dryrun debug running mbase mprojectname muser command = do
   regexp <-
     case mprojectname of
       Nothing -> return $ progname +=+ fromMaybe "" mbase
@@ -179,12 +181,12 @@ enterCmd dryrun debug running mbase mprojectname command = do
     [] ->
       if running
       then do
-        enterCmd dryrun debug False mbase mprojectname command
+        enterCmd dryrun debug False mbase mprojectname muser command
       else error' "encapsule container not found"
     [c] -> do
       unless running $
         warning "no running encapsule container found"
-      enterContainer dryrun debug True c command
+      enterContainer dryrun debug True muser c command
     _ -> error' $ "multiple" +-+ (if running then  "running" else "") +-+ "containers match:\n" ++ unlines ps
 
 -- image management
