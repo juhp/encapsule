@@ -65,9 +65,10 @@ setupScript dbg mswitch haveSudo (Setup {..}) =
       when sudoEnable $
       -- FIXME handle no sudoers.d?
       let sudoersd = "/etc/sudoers.d" in
-          whenCmd (test $ TDirExists sudoersd) $ do
-          runHide "echo" [username, "ALL=(ALL) NOPASSWD:ALL"] `redir` (sudoersd </> program)
-          runHide "chmod" ["440", T.pack sudoersd]
+        whenCmd (test $ TDirExists sudoersd) $ do
+        let sudoersfile = sudoersd </> program
+        runHide "echo" [username, "ALL=(ALL) NOPASSWD:ALL"] `redir` sudoersfile
+        runHide "chmod" ["440", T.pack sudoersfile]
 
     homeSetup = do
       when createhome $ do
