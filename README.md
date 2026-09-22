@@ -27,7 +27,7 @@ There is no need to use this prefix normally - it is implicit.
 `$ encapsule --version`
 
 ```
-0.5.1
+0.5.2
 ```
 
 `$ encapsule --help`
@@ -70,7 +70,7 @@ from a (toolbox) image or container.
 ```
 Usage: encapsule run IMAGE [-v|--volume HOST:CONTAINER[:opts]]
                      [-e|--env KEY[=VALUE]] [--path DIR] [-i|--init CMD]
-                     [--cap NAME] [--pull] [--user USER]
+                     [--cap NAME] [--pull] [--root | --user USER]
                      [(-H|--home DIR[:opts]) [--backup-home]]
                      [(-p|--project DIR[:opts]) [--backup-project]]
                      [-n|--name NAME] [--readonly] [--no-network] [--no-sudo]
@@ -88,6 +88,7 @@ Available options:
                            container
   --cap NAME               Enable a capability from the config file
   --pull                   Pull newer container image
+  --root                   Run as root (shorthand for --user root)
   --user USER              Override container user [default: host/image user
                            with host UID]
   -H,--home DIR[:opts]     Mount a directory as a writable home (created if
