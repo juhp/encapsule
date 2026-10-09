@@ -1,0 +1,31 @@
+# table fields can be overriden by
+# - /etc/xdg/encapsule/config.toml (XDG_CONFIG_DIRS)
+# - ~/.config/encapsule/config.toml (XDG_CONFIG_HOME)
+
+[capabilities.ssh]
+volumes = ["~/.ssh:ro"]
+
+[capabilities.git]
+volumes = ["~/.gitconfig:ro"]
+
+# gtk4 needs libglvnd-gles
+[capabilities.wayland]
+env = ["WAYLAND_DISPLAY", "XDG_RUNTIME_DIR"]
+volumes = ["$XDG_RUNTIME_DIR/$WAYLAND_DISPLAY"]
+security_opts = ["label=disable"]
+
+[capabilities.dbus]
+volumes = ["/run/dbus/system_bus_socket"]
+
+[capabilities.dconf]
+volumes = ["$XDG_RUNTIME_DIR/dconf"]
+
+[capabilities.machine-id]
+volumes = ["/etc/machine-id:ro"]
+
+[capabilities.rust]
+path = ["~/.cargo/bin"]
+
+[capabilities.ssh-agent]
+env = ["XDG_RUNTIME_DIR"]
+volumes = ["$XDG_RUNTIME_DIR/ssh-agent.sock"]

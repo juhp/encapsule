@@ -16,12 +16,14 @@ import System.Process (readProcessWithExitCode)
 import Test.Hspec
 
 import EncapsuleTest
+import qualified ConfigSpec
 
 main :: IO ()
 main = hspec spec
 
 spec :: Spec
 spec = do
+  ConfigSpec.spec
   describe "dryrun" $ do
     it "podman run has keep-id, TERM & LANG" $
       withGenericImage $ \img -> do

@@ -9,29 +9,52 @@ module Config (
   )
 where
 
-import Data.List (intercalate)
+import Control.Monad (filterM)
+import Data.List (delete, intercalate)
 import qualified Data.Map.Strict as Map
 import Data.Maybe (mapMaybe)
 import qualified Data.Text as T
 import SimpleCmd (error', (+-+))
 import System.Directory (doesFileExist)
-import System.Environment.XDG.BaseDir (getUserConfigFile)
+import System.Environment.XDG.BaseDir (getAllConfigFiles, getUserConfigFile)
 import TOML (Value(..), Table, renderTOMLError, decodeFile)
+
+import Paths_encapsule (getDataFileName)
 
 progname :: String
 progname = "encapsule"
 
 loadConfig :: IO (Maybe Table)
 loadConfig = do
-  path <- getUserConfigFile progname "config.toml"
-  exists <- doesFileExist path
-  if not exists
+  userPath <- getUserConfigFile progname "config.toml"
+  configPaths <- getAllConfigFiles progname "config.toml" >>= filterM doesFileExist
+  paths <- if null $ delete userPath configPaths
+           then do
+             bundledPath <- getDataFileName "data/config.toml"
+             exists <- doesFileExist bundledPath
+             return $ configPaths ++ [bundledPath | exists]
+           else return configPaths
+  if null paths
     then return Nothing
     else do
+      tables <- mapM loadTable paths
+      return $ Just $ foldr mergeTables Map.empty tables
+  where
+    loadTable path = do
       result <- decodeFile path
       case result of
-        Left e -> error' $ "config parse error:" +-+ T.unpack (renderTOMLError e)
-        Right table -> return (Just table)
+        Left e -> error' $ "config parse error in" +-+ path ++ ":" +-+
+                          T.unpack (renderTOMLError e)
+        Right table -> return table
+
+-- XDG lists the user file first, followed by system files in priority order.
+-- Merge nested tables, but replace other values (including arrays).
+mergeTables :: Table -> Table -> Table
+mergeTables = Map.unionWith mergeValue
+  where
+    mergeValue (Table preferred) (Table fallback) =
+      Table $ mergeTables preferred fallback
+    mergeValue preferred _ = preferred
 
 getCapabilities :: Maybe Table -> Table
 getCapabilities Nothing = Map.empty

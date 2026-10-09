@@ -213,6 +213,18 @@ Each capability can define:
 If the host and container paths are the same, you can use the shorthand
 `PATH[:opts]` instead of `PATH:PATH[:opts]`.
 
+The default defined capabilities live in the bundled `data/config.toml` file.
+These capabilities can be overridden by XDG system config files
+(under `XDG_CONFIG_DIRS`): by default `/etc/xdg/encapsule/config.toml`.
+User settings (`XDG_CONFIG_HOME`) take precedence over these settings;
+earlier directories in `XDG_CONFIG_DIRS` take precedence over later ones.
+Nested tables are merged, so overriding one field of a capability preserves
+its other system defaults. Arrays are replaced rather than appended;
+use an empty array to clear a default.
+
+Note that a existing system config, even an empty file, replaces the bundled
+defaults entirely, whereas the user config will augment or modify them.
+
 ## How it works
 
 0. Commits the named toolbox container to an encapsule image using `buildah commit`.

@@ -17,6 +17,7 @@ category:            Utility
 homepage:            https://github.com/juhp/encapsule
 bug-reports:         https://github.com/juhp/encapsule/issues
 build-type:          Simple
+data-files:          data/config.toml
 extra-doc-files:     README.md
                      ChangeLog.md
                      example/config.toml
@@ -84,13 +85,22 @@ test-suite test
   type:                exitcode-stdio-1.0
   main-is:             Spec.hs
   other-modules:       EncapsuleTest
-  hs-source-dirs:      test
+                       ConfigSpec
+                       Config
+                       Paths_encapsule
+  autogen-modules:     Paths_encapsule
+  hs-source-dirs:      test src
   build-depends:       base < 5
+                     , containers
                      , directory
                      , filepath
                      , hspec
                      , process
+                     , simple-cmd
+                     , text
+                     , toml-reader
                      , unix
+                     , xdg-basedir
   build-tool-depends:  encapsule:encapsule
   default-language:    Haskell2010
   ghc-options:         -Wall -threaded
