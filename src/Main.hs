@@ -75,7 +75,7 @@ main = do
     projectNameOpt = Project <$> projectOpt "Project name or path" <|>
                      Name <$> nameOpt
 
-    backupDirOpt s l m h =
+    dirOptBackup s l m h =
       let pair fs sn = (fs,sn) in
         pair
         <$> strOptionWith s l m h
@@ -97,8 +97,8 @@ main = do
       <*> many (strOptionLongWith "cap" "NAME" "Enable a capability from the config file")
       <*> switchLongWith "pull" "Pull newer container image"
       <*> optional userNameOpt
-      <*> optional (backupDirOpt 'H' "home" "DIR[:opts]" "Mount a directory as a writable home (created if missing; use DIR:O to overlay)")
-      <*> optional (backupDirOpt 'p' "project" "DIR[:opts]" "Mount a (project) directory as workdir (use DIR:O to overlay)")
+      <*> optional (dirOptBackup 'H' "home" "DIR[:opts]" "Mount a directory as a writable home (created if missing; use DIR:O to overlay)")
+      <*> optional (dirOptBackup 'p' "project" "DIR[:opts]" "Mount a (project) directory as workdir (use DIR:O to overlay)")
       <*> optional nameOpt
       <*> pure keep
       <*> switchLongWith "readonly" "Make the encapsule container filesystem read-only"
