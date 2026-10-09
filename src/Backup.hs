@@ -55,7 +55,7 @@ backupCmd dryrun yes moutput dir = do
     else do
     checkSize yes Nothing src
     (if dryrun then cmdN else cmd_) "tar" $ map shellQuote args ++ [base]
-  putStrLn $ "Wrote" +-+ tarball
+  putStrLn $ (if dryrun then "Would write" else "Wrote") +-+ tarball
 
 -- Prompt when backing up more than this many bytes.
 largeBackupBytes :: Integer
