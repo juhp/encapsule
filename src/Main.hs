@@ -28,6 +28,8 @@ main = do
       pure listCmd
     , Subcommand "list-caps" "List available capabilities" $
       pure listCapsCmd
+    , Subcommand "pull" "Pull a container image with podman" $
+      pullCmd <$> strArg "IMAGE"
     , Subcommand "rm" "Remove an encapsule container" $
       removeCmd
       <$> strArg "TOOLBOX"
@@ -192,6 +194,11 @@ enterCmd dryrun debug running mbase mprojectname muser command = do
     _ -> error' $ "multiple" +-+ (if running then  "running" else "") +-+ "containers match:\n" ++ unlines ps
 
 -- image management
+
+pullCmd :: String -> IO ()
+pullCmd image = do
+  needPodman
+  cmd_ "podman" ["pull", image]
 
 commitCmd :: Bool -> Maybe String -> String -> IO ()
 commitCmd dryrun mname toolbox = do

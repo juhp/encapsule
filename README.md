@@ -53,6 +53,7 @@ Available options:
 Available commands:
   list                     List encapsule images and containers
   list-caps                List available capabilities
+  pull                     Pull a container image with podman
   rm                       Remove an encapsule container
   rmi                      Remove an encapsule image
   stop                     Stop an encapsule container
@@ -333,7 +334,7 @@ cabal bench --benchmark-options '--csv /tmp/encapsule-bench.csv --time-limit 3'
 
 - [podman](https://podman.io/)
 - An existing (toolbox) image (optionally created from a container with `toolbox create`).
-  - There is a `--pull` option (intended for refreshing) - you may prefer to `podman pull` down your image first.
+  - Use `encapsule pull` (or `podman pull`) to get an image first.
 - Encapsule has only been tested on Linux.
 
 ## Related projects
