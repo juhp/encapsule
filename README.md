@@ -73,9 +73,9 @@ Usage: encapsule run IMAGE [-v|--volume HOST:CONTAINER[:opts]]
                      [--cap NAME] [--pull] [--root | --user USER]
                      [(-H|--home DIR[:opts]) [--backup-home]]
                      [(-p|--project DIR[:opts]) [--backup-project]]
-                     [-n|--name NAME] [--readonly] [--no-network] [--sudo]
-                     [--no-skel] [--podman-opt OPTION] [--debug] [--dryrun]
-                     [[--] CMD]
+                     [-n|--name NAME] [--readonly]
+                     [--no-network | --network-host] [--sudo] [--no-skel]
+                     [--podman-opt OPTION] [--debug] [--dryrun] [[--] CMD]
 
   Run a temporary encapsule container
 
@@ -101,6 +101,7 @@ Available options:
                            skip 'encapsule-' prefix)
   --readonly               Make the encapsule container filesystem read-only
   --no-network             Disable network access
+  --network-host           Share the host network (including localhost ports)
   --sudo                   Set up passwordless sudo for the container user
   --no-skel                Don't copy /etc/skel into an empty home
   --podman-opt OPTION      Pass an option directly to podman
@@ -108,6 +109,12 @@ Available options:
   --dryrun                 Print the podman command instead of running it
   -h,--help                Show this help text
 ```
+
+Use `--network-host` with `run` or `create` to make servers on arbitrary
+container localhost ports reachable on the same host localhost ports.
+This also allows access to host-local services and shares the host's port
+space. It cannot be combined with `--no-network`. Without either option,
+Podman's default isolated container networking applies.
 
 ### `create` command
 `create` is similar but creates a reusable container for a project and/or temp home.

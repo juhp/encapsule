@@ -7,6 +7,7 @@
 - `commit`: use podman instead of buildah
 - install default capabilities in datadir/config.toml
   (can be overriden by `XDG_CONFIG_DIRS` files and augmented by user config)
+- add `--network-host` to share host networking for local servers
 
 ## 0.5.1 (2026-09-15)
 - `enter` bugfix: -e=LANG must precede container

@@ -4,6 +4,7 @@
 
 module Run (
   ProjectName(..),
+  NetworkMode(..),
   RunOpts(..),
   runCmd,
   (+=+),
@@ -46,6 +47,8 @@ import ShellQuote
 
 data ProjectName = Project FilePath | Name String
 
+data NetworkMode = NetNone | NetHost
+
 data RunOpts = RunOpts
   { toolbox :: String
   , vols :: [String]
@@ -60,7 +63,7 @@ data RunOpts = RunOpts
   , mname :: Maybe String
   , keep :: Bool
   , readonly :: Bool
-  , nonetwork :: Bool
+  , networkMode :: Maybe NetworkMode
   , sudoEnable :: Bool
   , noskel :: Bool
   , unique :: Bool
@@ -122,7 +125,7 @@ runCmd (RunOpts {..}) = do
             , isNothing muser
             , not keep
             , not readonly
-            , not nonetwork
+            , isNothing networkMode
             , not sudoEnable
             , not noskel
             , null podmanopts
@@ -326,7 +329,10 @@ runCmd (RunOpts {..}) = do
                               Nothing -> ["--tmpfs", containerHome]
                               Just _ -> []
                     else [])
-                ++ (if nonetwork then ["--net", "none"] else [])
+                ++ (case networkMode of
+                      Nothing -> []
+                      Just NetNone -> ["--net", "none"]
+                      Just NetHost -> ["--net", "host"])
                 ++ concatMap (\s -> ["--security-opt", s]) securityOpts
                 ++ concatMap (\m -> ["-v", m]) (tzMounts ++ mounts)
                 ++ concatMap (\e -> ["-e", e]) envVars

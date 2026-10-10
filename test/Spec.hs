@@ -25,6 +25,11 @@ spec :: Spec
 spec = do
   ConfigSpec.spec
   describe "dryrun" $ do
+    it "shares host networking with --network-host" $
+      withGenericImage $ \img -> do
+        out <- dryrun ["--network-host", img]
+        out `shouldContain` "--net host"
+
     it "podman run has keep-id, TERM & LANG" $
       withGenericImage $ \img -> do
         out <- dryrun [img]

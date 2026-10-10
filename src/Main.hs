@@ -102,7 +102,9 @@ main = do
       <*> optional nameOpt
       <*> pure keep
       <*> switchLongWith "readonly" "Make the encapsule container filesystem read-only"
-      <*> switchLongWith "no-network" "Disable network access"
+      <*> optional
+          (flagLongWith' NetNone "no-network" "Disable network access" <|>
+           flagLongWith' NetHost "network-host" "Share the host network (including localhost ports)")
       <*> switchLongWith "sudo" "Set up passwordless sudo for the container user"
       <*> switchLongWith "no-skel" "Don't copy /etc/skel into an empty home"
       <*> pure unique
