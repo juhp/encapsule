@@ -22,6 +22,7 @@ import Error
 import Expand
 import ShellQuote
 
+-- FIXME add --output-dir
 backupCmd :: Bool -> Bool -> Maybe FilePath -> FilePath -> IO ()
 backupCmd dryrun yes moutput dir = do
   homedir <- getHomeDirectory >>= canonicalizePath

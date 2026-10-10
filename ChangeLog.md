@@ -1,6 +1,6 @@
 # encapsule releases
 
-## 0.5.2 (2026-09-22)
+## 0.6 (2026-10-10)
 - make passwordless sudo setup opt-in with `--sudo` (replaces `--no-sudo`)
 - add `--root` as shorthand for `--user root`
 - `enter`: add `--root/--user`

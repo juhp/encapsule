@@ -14,20 +14,26 @@ selecting user-configured "capabilities" that the encapsule container can access
 Most encapsule subcommands act on an image.
 - If you wish to use an existing toolbox container as a starting point you can `commit` it to an "encapsule" container image.
   - Note your original toolbox container is left untouched: its system configuration and fs are just used as the base fs for the encapsule image (though its original bind mounts including $HOME will be not be included by default).
-- Alternatively you can roll your own image or run a vanilla image like `fedora` (`fedora:latest`), `fedora-toolbox:44` or `ubuntu:latest`, etc.
-  - However toolbox images or containers are recommended because they include `sudo` and `runuser`, but as such it doesn't have to be a toolbox container.
-  - For example since the fedora base container does not include runuser it runs as `--user root` by default (since as of 0.5 util-linux is no longer
-installed by default into encapsule containers: this may be addressed in future).
+- Alternatively you can roll your own image or run a vanilla image like `fedora` (`fedora:latest`), `fedora-toolbox:45`, `ubuntu:latest`, etc.
+  - Toolbox images or containers are generally recommended for development, but it doesn't have to be a toolbox container as such.
 
-Encapsule images and containers are prefixed by `encapsule-`.
-There is no need to use this prefix normally - it is implicit.
+A typical invocation might look like:
+
+```
+$ encapsule someimage:tag --cap my-config --home ~/isolated --project projects/abc
+```
+
+(directories can be relative).
+
+Encapsule images and containers are prefixed by `encapsule-`,
+but there is no need to use this prefix normally - it is implicit.
 
 ## Usage
 
 `$ encapsule --version`
 
 ```
-0.5.2
+0.6
 ```
 
 `$ encapsule --help`
@@ -62,8 +68,7 @@ There are 3 main commands: `run`, `create`, and `enter`.
 
 ### `run` command
 
-`run` starts a temporary encapsule container (removed on exit)
-from a (toolbox) image or container.
+`run` starts a temporary encapsule container (removed on exit) from an image.
 
 `$ encapsule run --help`
 
@@ -110,7 +115,7 @@ Available options:
   -h,--help                Show this help text
 ```
 
-Use `--network-host` with `run` or `create` to make servers on arbitrary
+Use `--network-host` with `run` (or `create`) to make servers on arbitrary
 container localhost ports reachable on the same host localhost ports.
 This also allows access to host-local services and shares the host's port
 space. It cannot be combined with `--no-network`. Without either option,
@@ -136,7 +141,25 @@ $ encapsule enter --root my-toolbox
 
 ### `commit` command
 `commit` saves a container as an encapsule image (`encapsule-CONTAINER` by default).
-Use `-n/--name NAME` for a custom image name (`encapsule-NAME`, or `^NAME` to skip the prefix).
+Use `-n/--name NAME` for a custom image name (becomes `encapsule-NAME`, or `^NAME` to skip the prefix).
+
+### `list` command
+Lists the encapsule images and containers:
+
+```
+$ ncpsl list
+localhost/encapsule-harness:latest  6.15 GB  12 days ago
+
+encapsule-harness-encapsule  Up 31 hours
+encapsule-fedora  Up 29 minutes
+encapsule-fedora-toolbox-45  Up 5 seconds
+```
+
+### `backup` command
+This is really independent of encapsule.
+It provides a simple way to create a backup tarball of a (git) project or dir.
+There are also runtime `--backup-project` and `--backup-home` options.
+
 
 ## Examples
 
@@ -190,7 +213,8 @@ There is a `rmi` command to remove an encapsule image no longer needed.
 ## Capabilities
 
 Capabilities define reusable groups of volumes, environment variables,
-PATH entries, and init commands in `~/.config/encapsule/config.toml`:
+PATH entries, and init commands in `/usr/share/encapsule/config.toml`
+and `~/.config/encapsule/config.toml`:
 
 ```toml
 [capabilities.ssh]
@@ -208,6 +232,10 @@ security_opts = ["label=disable"]
 path = ["~/.cargo/bin"]
 ```
 
+There is an example user config file: `example/config.toml`.
+
+Use `encapsule list-caps` to list all the available defined capabilities.
+
 Each capability can define:
 
 - `volumes` : list of bind mount specs
@@ -223,18 +251,23 @@ If the host and container paths are the same, you can use the shorthand
 The default defined capabilities live in the bundled `data/config.toml` file.
 These capabilities can be overridden by XDG system config files
 (under `XDG_CONFIG_DIRS`): by default `/etc/xdg/encapsule/config.toml`.
-User settings (`XDG_CONFIG_HOME`) take precedence over these settings;
+User settings (under `XDG_CONFIG_HOME`) take precedence over these settings;
 earlier directories in `XDG_CONFIG_DIRS` take precedence over later ones.
 Nested tables are merged, so overriding one field of a capability preserves
 its other system defaults. Arrays are replaced rather than appended;
 use an empty array to clear a default.
 
-Note that a existing system config, even an empty file, replaces the bundled
-defaults entirely, whereas the user config will augment or modify them.
+Note that an existing XDG system config, even an empty file,
+replaces the bundled default definitions entirely,
+whereas the user config will augment or modify them.
+
+To be quite clear, no capabilities are used by default:
+they need to be explicitly enabled on the commandline.
+The definitions just make them available to use.
 
 ## How it works
 
-0. Commits the named toolbox container to an encapsule image using `buildah commit`.
+0. Optionally commits the named toolbox container to an encapsule image (using `podman commit`).
 1. Runs `podman run` with `--userns=keep-id` so you are your own user, not root
 2. Drops from root with `runuser` if present, otherwise `sudo -u`. Explicit
    `--user root`/`--root` runs directly as root (`enter` uses
@@ -246,14 +279,12 @@ defaults entirely, whereas the user config will augment or modify them.
 5. When `-p/--project DIR` is used (and `--name` isn't), the container name
    includes the project directory's name (e.g. `encapsule-mytoolbox-myproject`),
    so you can run the same toolbox against different projects at the same time
-   in separate encapsule containers. Though for different project paths with
-   the same directory name the container name will not be differentiated.
+   in separate encapsule containers. For invocations with the same name,
+   the container name gets differentiated by pid.
 
 ## Installation
 
-A copr repo is available for Fedora and EPEL 10:
-
-<https://copr.fedorainfracloud.org/coprs/petersen/encapsule/>
+Encapsule is packaged in Fedora: <https://src.fedoraproject.org/rpms/encapsule>
 
 ## Building from source
 
@@ -280,8 +311,8 @@ or `stack install encapsule`.
 (`--dryrun` against local images, plus an optional live `run`).
 It needs podman and skips missing images.
 
-Default images are `ubuntu:latest` and `fedora:latest`.
-Override with `ENCAPSULE_TEST_UBUNTU` and `ENCAPSULE_TEST_FEDORA`.
+Default images are `fedora:latest` and `ubuntu:latest`.
+Override with `ENCAPSULE_TEST_FEDORA` and `ENCAPSULE_TEST_UBUNTU`.
 Live tests need a TTY, or set `ENCAPSULE_LIVE=1` to try without one.
 `ENCAPSULE` selects a different encapsule binary.
 
@@ -300,9 +331,10 @@ cabal bench --benchmark-options '--csv /tmp/encapsule-bench.csv --time-limit 3'
 
 ## Runtime Requirements
 
-- [podman](https://podman.io/) and [buildah](https://buildah.io/)
-- An existing (toolbox) container (created with `toolbox create`) or an image.
-- Alternatively other non-toolbox container/images can also work.
+- [podman](https://podman.io/)
+- An existing (toolbox) image (optionally created from a container with `toolbox create`).
+  - There is a `--pull` option (intended for refreshing) - you may prefer to `podman pull` down your image first.
+- Encapsule has only been tested on Linux.
 
 ## Related projects
 
@@ -312,7 +344,7 @@ There is also similarly [schupfn](https://github.com/whot/schupfn/) which uses Q
 
 Another somewhat related project is [podenv](https://github.com/podenv/podenv), which "provides a declarative interface to manage containerized applications."
 
-For stronger sandboxing and isolation, specially network, consider using [OpenShell](https://github.com/NVIDIA/OpenShell/). At some point this project might move to wrapping or supporting openshell possibly.
+For stronger sandboxing and isolation, specially network, consider using [OpenShell](https://github.com/NVIDIA/OpenShell/). At some point this project might support openshell perhaps.
 
 There is also [litterbox](https://github.com/Gerharddc/litterbox) which has quite a lot of features and though somewhat opinionated, for example like openshell also supports landlock confinement.
 
